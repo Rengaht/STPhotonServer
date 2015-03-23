@@ -1,0 +1,16 @@
+C:\Users\Reng\Documents\Visual Studio 2012\Projects\STPhotonServer\STPhotonServer\bin\log4net.config
+C:\Users\Reng\Documents\Visual Studio 2012\Projects\STPhotonServer\STPhotonServer\bin\STPhotonServer.dll
+C:\Users\Reng\Documents\Visual Studio 2012\Projects\STPhotonServer\STPhotonServer\bin\STPhotonServer.pdb
+C:\Users\Reng\Documents\Visual Studio 2012\Projects\STPhotonServer\STPhotonServer\bin\ExitGames.Logging.Log4Net.dll
+C:\Users\Reng\Documents\Visual Studio 2012\Projects\STPhotonServer\STPhotonServer\bin\ExitGamesLibs.dll
+C:\Users\Reng\Documents\Visual Studio 2012\Projects\STPhotonServer\STPhotonServer\bin\log4net.dll
+C:\Users\Reng\Documents\Visual Studio 2012\Projects\STPhotonServer\STPhotonServer\bin\Photon.SocketServer.dll
+C:\Users\Reng\Documents\Visual Studio 2012\Projects\STPhotonServer\STPhotonServer\bin\ExitGames.Logging.Log4Net.pdb
+C:\Users\Reng\Documents\Visual Studio 2012\Projects\STPhotonServer\STPhotonServer\bin\ExitGames.Logging.Log4Net.xml
+C:\Users\Reng\Documents\Visual Studio 2012\Projects\STPhotonServer\STPhotonServer\bin\ExitGamesLibs.pdb
+C:\Users\Reng\Documents\Visual Studio 2012\Projects\STPhotonServer\STPhotonServer\bin\ExitGamesLibs.xml
+C:\Users\Reng\Documents\Visual Studio 2012\Projects\STPhotonServer\STPhotonServer\bin\Photon.SocketServer.pdb
+C:\Users\Reng\Documents\Visual Studio 2012\Projects\STPhotonServer\STPhotonServer\bin\Photon.SocketServer.xml
+C:\Users\Reng\Documents\Visual Studio 2012\Projects\STPhotonServer\STPhotonServer\obj\Debug\STPhotonServer.dll
+C:\Users\Reng\Documents\Visual Studio 2012\Projects\STPhotonServer\STPhotonServer\obj\Debug\STPhotonServer.pdb
+C:\Users\Reng\Documents\Visual Studio 2012\Projects\STPhotonServer\STPhotonServer\obj\Debug\STPhotonServer.csprojResolveAssemblyReference.cache
