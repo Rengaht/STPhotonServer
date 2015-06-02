@@ -11,10 +11,15 @@ namespace STPhotonServer
     }
     public enum STClientCode
     {
-        APP_Join=51,
+        APP_Check_Id=51,
+        APP_Join=52,
 
+        APP_Set_Side=60,
         APP_Set_Name=61,
-        APP_Blow=62,
+        APP_Set_House=62,
+        APP_Blow=63,
+        APP_Light=64,
+        APP_Shake=65,
 
         APP_Rotate=71,
 
@@ -27,12 +32,17 @@ namespace STPhotonServer
     }
     public enum STServerCode
     {
-        Game_Info=151,
+        CLogin_Success=150,
+        Id_And_Game_Info=151,
         
-        CSend_Id=152,
+        CJoin_Success=152,
+
         CSend_GG=153,
 
+        CSet_Side_Success=160,
         CSet_Name_Success=161,
+        CSet_House_Success=162,
+
         
         CGameB_Start=171,
         
@@ -46,8 +56,12 @@ namespace STPhotonServer
         LSend_GG=204,
         
 
-        LSet_Name=210,
-        LSet_Blow=211,
+        LSet_Name=211,
+        LSet_House=212,
+        LSet_Blow=213,
+        LSet_Light = 214,
+        LSet_Shake = 215,
+
 
         LGameB_Start=220,
         LUser_Color=221,

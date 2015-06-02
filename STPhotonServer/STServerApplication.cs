@@ -22,7 +22,7 @@ namespace STPhotonServer
         protected static readonly ILogger Log=LogManager.GetCurrentClassLogger();
 
         List<PeerBase> lconnected_peer;
-        int message_count=0;
+        //int message_count=0;
 
         public STGameApp game_app;
 
@@ -66,7 +66,7 @@ namespace STPhotonServer
             foreach(STServerPeer peer in lconnected_peer)
             {
                 Log.Debug("peer: "+peer.ToString());
-                peer.sendEventToPeer();
+                //peer.sendEventToPeer();
             }
 
         }
@@ -74,6 +74,7 @@ namespace STPhotonServer
         protected override void TearDown()
         {
             // server close
+            game_app.closeDatabase();
         }
 
         

@@ -19,8 +19,9 @@ namespace STPhotonServer
         protected static readonly ILogger Log=LogManager.GetCurrentClassLogger();
         protected int message_count=0;
 
-
+        private Boolean is_led=false;
         private readonly IFiber fiber;
+        public String client_id { get; set; }
 
 
         public STServerPeer(IRpcProtocol rpcProtocol, IPhotonPeer nativePeer,STGameApp ga)
@@ -37,7 +38,7 @@ namespace STPhotonServer
         protected override void OnDisconnect(PhotonHostRuntimeInterfaces.DisconnectReason reasonCode, string reasonDetail)
         {
             game_app.removeClientPeer(this);
-            
+            if (is_led) game_app.checkLed();
         }
 
         protected override void OnOperationRequest(OperationRequest operationRequest, SendParameters sendParameters)
@@ -56,8 +57,9 @@ namespace STPhotonServer
                 case 230: // user log in
 
                     Log.Warn("------------------- User LogIn !");
-                    var info_param=new Dictionary<byte,object>{{1,game_app.cur_game},{2,game_app.checkAvailable()}};
-                    OperationResponse info_response=new OperationResponse((byte)STServerCode.Game_Info,info_param){
+                    //var info_param=new Dictionary<byte,object>{{1,game_app.cur_game},{2,game_app.checkAvailable()}};
+                    var info_param=new Dictionary<byte,object>();
+                    OperationResponse info_response=new OperationResponse((byte)STServerCode.CLogin_Success,info_param){
                         ReturnCode=(short)0,
                         DebugMessage="server feedback"
                     };
@@ -84,7 +86,8 @@ namespace STPhotonServer
                     {
                         foreach(DictionaryEntry entry in eparams)
                         {
-                            Log.Debug(entry.Key+" - "+entry.Value);
+                            Log.Debug(entry.Key + " - " + entry.Value);
+                            
                             event_params.Add((byte)entry.Key,entry.Value);
                         }
                     }
@@ -93,20 +96,69 @@ namespace STPhotonServer
                        
 
                         case STClientCode.LED_Join:
+
+                            game_app.setupLedPeer(this);
+
+                            event_params.Add((byte)1, game_app.getCurGame());
                             OperationResponse led_connected_response=new OperationResponse((byte)STServerCode.LConnected,event_params)
                             {
                                 ReturnCode=(short)0,
                                 DebugMessage="server feedback"
                             };
                             this.fiber.Enqueue(()=>SendOperationResponse(led_connected_response, new SendParameters()));
+                            is_led = true;
                             
-                            game_app.setupLedPeer(this);
                             break;
-                       
+                        
+                        case STClientCode.APP_Check_Id:
+                           
+                            
+                            Dictionary<byte, Object> id_params = new Dictionary<byte, Object>();
+                            id_params.Add((byte)1, game_app.getCurGame());
+
+                            String get_id = (String)event_params[(byte)100];
+                            
+                            if (game_app.led_ready)
+                            {
+                                id_params.Add((byte)2, game_app.checkAvailable());
+
+                                bool valid_id = game_app.getValidId(ref get_id);
+                                Log.Debug("id: " + valid_id + " - " + get_id);
+
+                                id_params.Add((byte)3, valid_id ? 1 : 0);
+                                id_params.Add((byte)100, get_id);
+                            }
+
+                            OperationResponse id_response=new OperationResponse((byte)STServerCode.Id_And_Game_Info,id_params)
+                            {
+                                ReturnCode=(short)0,
+                                DebugMessage="server feedback"
+                            };
+                            this.fiber.Enqueue(()=>SendOperationResponse(id_response, new SendParameters()));
+                            
+                            
+                            this.client_id = get_id;
+
+                            break;
 
                         default:
                             //Log.Warn("Undefined event code= "+event_code.ToString());
-                            game_app.handleMessage(this,event_code,event_params);
+                            if (game_app.led_ready)
+                            {
+                                game_app.handleMessage(this, event_code, event_params);
+                            }
+                            else
+                            {   // if no led available, kick them off!
+                                Dictionary<byte, Object> _params = new Dictionary<byte, Object>();
+                                _params.Add((byte)1, game_app.getCurGame());
+                                OperationResponse _response = new OperationResponse((byte)STServerCode.Id_And_Game_Info, _params)
+                                {
+                                    ReturnCode = (short)0,
+                                    DebugMessage = "server feedback"
+                                };
+                                this.fiber.Enqueue(() => SendOperationResponse(_response, new SendParameters()));
+
+                            }
                             break;
 
                     }
