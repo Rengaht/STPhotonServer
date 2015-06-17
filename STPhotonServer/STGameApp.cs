@@ -15,7 +15,7 @@ namespace STPhotonServer
         public bool enable_db = false;
 
         bool debug_mode = true;
-        int debug_game = 2;
+        int debug_game = 1;
 
         protected static readonly ILogger Log=LogManager.GetCurrentClassLogger();
 
@@ -163,7 +163,7 @@ namespace STPhotonServer
             //agame_scene[cur_game].EndGame();
 
             EventData event_data=new EventData((byte)STServerCode.CSend_GG,
-                                                new Dictionary<byte,object>() { { (byte)1,1 },{(byte)2,100} });
+                                                new Dictionary<byte,object>() );
             foreach(STServerPeer peer in aclient_peer)
             {
                 peer.sendEventToPeer(event_data);

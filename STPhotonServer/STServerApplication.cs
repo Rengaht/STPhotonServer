@@ -42,7 +42,7 @@ namespace STPhotonServer
         {
             //server init
             LogManager.SetLoggerFactory(Log4NetLoggerFactory.Instance);
-            GlobalContext.Properties["LogFileName"]=ApplicationName+System.DateTime.Now.ToString("yyyy-MM-dd-hh-mm");
+            GlobalContext.Properties["LogFileName"]="STGameB_"+System.DateTime.Now.ToString("yyyy-MM-dd-hh-mm");
             XmlConfigurator.ConfigureAndWatch(new FileInfo(Path.Combine(BinaryPath,"log4net.config")));
 
             Log.Debug("!!! STPhotonServer Start !!!");
