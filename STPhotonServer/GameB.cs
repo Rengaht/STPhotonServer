@@ -27,9 +27,9 @@ namespace STPhotonServer
         {
             GAME_SPAN=120000; //each round
             END_SPAN=2000;
-            Client_Limit=1;
+            Client_Limit=2;
 
-            WAIT_SPAN = 5000;
+            WAIT_SPAN = 15000;
             ROUND_SPAN = 610000; // whole game_b time
 
             resetWaitingList();
@@ -43,45 +43,18 @@ namespace STPhotonServer
                 case STClientCode.APP_Join:
                     Log.Warn("Join Game B!!");
                     
-                    
 
                     int join_success=checkJoinSuccess(event_params);
                     response_params.Add((byte)1,join_success);
 
-                    //int color_id =-1;
-                    if (join_success==1)
+                    if (join_success == 1)
                     {
-
-                        // check if the peer already has a waiting number??
-                        int waiting_index = -1;
-                        if (event_params[(byte)102] != null)
-                        {
-                            waiting_index = Convert.ToInt32(event_params[(byte)102]);
-                            String round_token = event_params[(byte)103] as String;
-                            if (round_token == this.game_stamp && checkValidWaitingIndex(waiting_index)){
-                               // correct waiting index
-                            }
-                            else
-                            {  // wrong waiting index
-                               waiting_index = getNewWaitingIndex(sender);
-                            }
-
-                        }
-            
-           
-
-                        if (waiting_index != icur_player || waiting_index != icur_player + 1) // is waiting
-                        {
-                            response_params[(byte)1] = 2;
-                        }
-
-                        response_params.Add((byte)102, waiting_index);
-                        response_params.Add((byte)103, game_stamp);
-                        //Log.Warn("Add user for color " + color_id);
-
-                        online_client.Add(sender);
-
+                        int iwait=getNewWaitingIndex(sender);
+                        Log.Debug("New in Waiting List: "+iwait);
+                        response_params.Add((byte)101, iwait);
                     }
+                    online_client.Add(sender);
+
                     sender.sendOpResponseToPeer(STServerCode.CJoin_Success,response_params);
 
                     checkWaitingStatus();
@@ -92,6 +65,9 @@ namespace STPhotonServer
                     game_app.SendNotifyLED(STServerCode.LSet_Rotate,event_params);
                     break;
 
+                case STClientCode.LED_StartRun:
+                    sendStartRun();
+                    break;
 
                 case STClientCode.LED_Score:
                     sender.sendOpResponseToPeer(STServerCode.LSend_Score_Success,response_params);
@@ -127,7 +103,7 @@ namespace STPhotonServer
             round_start_time = DateTime.Now;
             Log.Debug("Game B Start at " + round_start_time.ToString());
 
-            
+           
 
         }
 
@@ -137,12 +113,9 @@ namespace STPhotonServer
             
             game_app.SendNotifyLED(STServerCode.LSend_GG, new Dictionary<byte, object>());
 
-            play_in_game = false;
-            // check if anyone on waiting list
-            icur_player += mcur_player;
-            mcur_player = 2; // reset to 2
 
-            checkWaitingStatus();
+            resetWaitingList();
+            //checkWaitingStatus();
             
            
         }
@@ -160,10 +133,13 @@ namespace STPhotonServer
             if (!correct_game) return 0;
 
 
+            // check is playing
+            if(play_in_game) return 2;
+
             // check time available !!!
             
-            int mpair_waiting = (waiting_list.Count - (icur_player + mcur_player)) / 2;
-            bool time_available = checkTimeAvailable(mpair_waiting);
+            //int mpair_waiting = (waiting_list.Count - (icur_player + mcur_player)) / 2;
+            bool time_available = checkTimeAvailable(1);
 
             if(!time_available) return 0;
 
@@ -196,21 +172,21 @@ namespace STPhotonServer
 
         private void sendScoreToPeer(Dictionary<byte, object> led_score_params)
         {
-            int score1=0, score2=0;
-            //foreach (KeyValuePair<byte,object> item in led_score_params)
-            //{
-            //    if (item.Key == (byte)1) score1 = (int)item.Value;
-            //    if (item.Key == (byte)2) score2 = (int)item.Value;
-            //}
-            score1 = (int)led_score_params[(byte)1];
-            score2 = (int)led_score_params[(byte)2];
+            int[] score = new int[2];
+            int[] icar = new int[2];
 
-            int iwinner = (score1<score2) ? 1 : 0;
+            score[0] = (int)led_score_params[(byte)1];
+            score[1] = (int)led_score_params[(byte)2];
+
+            icar[0] = (int)led_score_params[(byte)3];
+            icar[1] = (int)led_score_params[(byte)4];
+
+            //int iwinner = (score1<score2) ? 1 : 0;
 
             for(int i = 0; i < mcur_player;++i){
                 STServerPeer peer = waiting_list[icur_player + i];
                 peer.sendEventToPeer(STServerCode.CSend_GG,
-                    new Dictionary<byte, object>() { { (byte)1, (i==iwinner)?1:0},{(byte)2,(i==0)?score1:score2}});
+                    new Dictionary<byte, object>() { { (byte)1, (score[i]>=score[(i+1)%2])?1:0},{(byte)2,score[i]},{(byte)3,icar[i]}});
             }
 
 
@@ -240,10 +216,11 @@ namespace STPhotonServer
                 
             int notified_user = 0;
             int i = 0;
-            while(notified_user< mcur_player)
-            {   
-                STServerPeer peer=waiting_list[icur_player + i];
-                
+            //while(notified_user< mcur_player)
+            //{   
+            //    STServerPeer peer=waiting_list[icur_player + i];
+            foreach(STServerPeer peer in waiting_list)
+            {
                 // check peer.Connected?
                 if (!peer.Connected)
                 {
@@ -251,7 +228,7 @@ namespace STPhotonServer
                     continue;
                 }
 
-                peer.sendEventToPeer(STServerCode.CGameB_Start, new Dictionary<byte, object>() {{(byte)101,notified_user}});
+                peer.sendEventToPeer(STServerCode.CGameB_Ready, new Dictionary<byte, object>() {{(byte)101,notified_user}});
 
                 i++;
                 notified_user++;
@@ -264,19 +241,26 @@ namespace STPhotonServer
             }
             start_params.Add((byte)201, mcur_player);
             
-            game_app.SendNotifyLED(STServerCode.LGameB_Start, start_params);
+            game_app.SendNotifyLED(STServerCode.LGameB_Ready, start_params);
 
             play_in_game = true;
 
             this.StartGame();
 
         }
+        private void sendStartRun(){
+            foreach (STServerPeer peer in waiting_list)
+            {
+                peer.sendEventToPeer(STServerCode.CGameB_Start, new Dictionary<byte, object>());
+            }
+            game_app.SendNotifyLED(STServerCode.LGameB_Start, new Dictionary<byte, object>());
+        }
 
         private void checkWaitingStatus()
         {
             Log.Debug("----- Check waiting status! -----");
 
-            if (waiting_list.Count - 1 >= icur_player + (mcur_player-1))
+            if (waiting_list.Count >= mcur_player)
             {
                 Log.Debug("----- Try to start a new game -----");
 

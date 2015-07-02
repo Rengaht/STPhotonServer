@@ -15,7 +15,7 @@ namespace STPhotonServer
 
         public GameA(STGameApp app):base(app,0)
         {
-             GAME_SPAN=20000;
+             GAME_SPAN=60000;
              END_SPAN=5000;
              Client_Limit=20;
 
@@ -57,7 +57,8 @@ namespace STPhotonServer
                     {
                         has_vacancy = (left_online_client.Count < Client_Limit / 2);
                         if (has_vacancy){
-                            left_online_client.Add((String)event_params[(byte)100], sender);
+                            if(!left_online_client.ContainsKey((String)event_params[(byte)100]))
+                                left_online_client.Add((String)event_params[(byte)100], sender);
                             side_index=1;
                         }
                     }
@@ -65,20 +66,29 @@ namespace STPhotonServer
                     {
                         has_vacancy = (right_online_client.Count < Client_Limit / 2);
                         if (has_vacancy){
-                            right_online_client.Add((String)event_params[(byte)100], sender);
+                            if (!right_online_client.ContainsKey((String)event_params[(byte)100])) 
+                                right_online_client.Add((String)event_params[(byte)100], sender);
                             side_index=0;
                         }
                     }
                     response_params.Add(1,has_vacancy?1:0);
                     response_params.Add(101, side_index);
                     sender.sendOpResponseToPeer(STServerCode.CSet_Side_Success,response_params);
+                    
+                    game_app.SendNotifyLED(STServerCode.LAdd_House, event_params);
 
                     break;
 
 
                 case STClientCode.APP_Set_Name:
                     response_params.Add((byte)1, 1);
+
                     sender.sendOpResponseToPeer(STServerCode.CSet_Name_Success,response_params);
+
+                    String _name = (String)event_params[(byte)1];
+                    byte[] _bname=System.Text.Encoding.UTF8.GetBytes(_name);
+                    event_params[(byte)1] = _bname;
+
                     game_app.SendNotifyLED(STServerCode.LSet_Name,event_params);
                     break;
                 case STClientCode.APP_Set_House:
@@ -111,15 +121,26 @@ namespace STPhotonServer
             //TODO: check id, check vacancy
             
             bool correct_id = game_app.checkValidId((String)event_params[(byte)100]);
-            
+            if (!correct_id)
+            {
+                Log.Debug("Illegal ID!");
+                return 0;
+            }
             bool has_vacancy = online_client.Count<Client_Limit;
-
+            if (!has_vacancy)
+            {
+                Log.Debug("No Vacancy");
+                return 0;
+            }
             
             bool correct_game = ((int)event_params[(byte)1] == 0);
+            if(!correct_game)
+            {
+                Log.Debug("Illegal Game!");
+                return 0;
+            }
 
-
-            if(correct_id && has_vacancy && correct_game) return 1;
-            return 0;
+            return 1;
 
         }
 

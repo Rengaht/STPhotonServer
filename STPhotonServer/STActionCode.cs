@@ -24,9 +24,11 @@ namespace STPhotonServer
         APP_Rotate=71,
 
         APP_Face=81,
+        
 
         LED_Join=101,
-        LED_Score=102
+        LED_Score=102,
+        LED_StartRun=103
 
 
     }
@@ -44,7 +46,8 @@ namespace STPhotonServer
         CSet_House_Success=162,
 
         
-        CGameB_Start=171,
+        CGameB_Ready=171,
+        CGameB_Start=172,
         
         CSet_Face_Success=181,
 
@@ -56,14 +59,17 @@ namespace STPhotonServer
         LSend_GG=204,
         
 
-        LSet_Name=211,
-        LSet_House=212,
-        LSet_Blow=213,
-        LSet_Light = 214,
-        LSet_Shake = 215,
+        LAdd_House=211,
+        LSet_Name=212,
+        LSet_House=213,
+        LSet_Blow=214,
+        LSet_Light = 215,
+        LSet_Shake = 216,
 
 
-        LGameB_Start=220,
+        LGameB_Ready=220,
+        LGameB_Start=223,
+
         LUser_Color=221,
         LSet_Rotate=222,
 

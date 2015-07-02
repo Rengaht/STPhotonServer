@@ -86,9 +86,19 @@ namespace STPhotonServer
                     {
                         foreach(DictionaryEntry entry in eparams)
                         {
-                            Log.Debug(entry.Key + " - " + entry.Value);
+                            Log.Debug(entry.Key +" "+entry.Key.GetType()+ " - " + entry.Value+" "+entry.Value.GetType());
+
+                            byte kbyte;
+                            try{
+                                kbyte=(byte)entry.Key;
+                            }catch(InvalidCastException e){
+                                
+                                byte[] bkey = BitConverter.GetBytes((int)entry.Key);
+                                Log.Debug("Unable to cast: "+bkey);
+                                kbyte = bkey[0];
+                            }
                             
-                            event_params.Add((byte)entry.Key,entry.Value);
+                            event_params.Add((byte)kbyte,entry.Value);
                         }
                     }
                     Log.Warn("--------------------------------- ");        
