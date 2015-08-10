@@ -25,13 +25,14 @@ namespace STPhotonServer
 
          public GameB(STGameApp app):base(app,1)
         {
-            GAME_SPAN=120000; //each round
+            
+            GAME_SPAN = 600000; // whole game_b time, 10 min
+            ROUND_SPAN= 100000; //each round 1:40
             END_SPAN=2000;
             Client_Limit=2;
 
-            WAIT_SPAN = 15000;
-            ROUND_SPAN = 610000; // whole game_b time
-
+            WAIT_SPAN = 60000;
+            
             resetWaitingList();
 
         }
@@ -68,12 +69,21 @@ namespace STPhotonServer
                 case STClientCode.LED_StartRun:
                     sendStartRun();
                     break;
+                case STClientCode.LED_EatIcon:
+
+                    int ipeer =(int)event_params[(byte)101];
+                    STServerPeer peer =null;
+                    if (ipeer == 1) peer = waiting_list[icur_player];
+                    else if(ipeer==0 && waiting_list.Count>1) peer = waiting_list[icur_player + 1];
+                    if(peer!=null) peer.sendEventToPeer(STServerCode.CGameB_Eat,event_params);
+                        
+                    break;
 
                 case STClientCode.LED_Score:
                     sender.sendOpResponseToPeer(STServerCode.LSend_Score_Success,response_params);
                     //game_app.sendGameOverToAll(event_params);
                     sendScoreToPeer(event_params);
-                    EndGame();
+                    EndRound();
 
                     break;
             }
@@ -92,33 +102,33 @@ namespace STPhotonServer
 
             resetWaitingList();
 
-            if (total_round_timer != null) total_round_timer.Close();
-            total_round_timer = new Timer(ROUND_SPAN);
-            total_round_timer.Elapsed += new ElapsedEventHandler(EndRound);
-            total_round_timer.AutoReset = false;
-            total_round_timer.Enabled = true;
+            //if (total_round_timer != null) total_round_timer.Close();
+            //total_round_timer = new Timer(ROUND_SPAN);
+            //total_round_timer.Elapsed += new ElapsedEventHandler(EndTotalGame);
+            //total_round_timer.AutoReset = false;
+            //total_round_timer.Enabled = true;
 
             
 
-            round_start_time = DateTime.Now;
-            Log.Debug("Game B Start at " + round_start_time.ToString());
+            //round_start_time = DateTime.Now;
+            //Log.Debug("Game B Start at " + round_start_time.ToString());
 
            
 
         }
 
         
-        override public void reallyEndGame(object sender, ElapsedEventArgs e)
-        {
+        //override public void reallyEndGame(object sender, ElapsedEventArgs e)
+        //{
             
-            game_app.SendNotifyLED(STServerCode.LSend_GG, new Dictionary<byte, object>());
+        //    game_app.SendNotifyLED(STServerCode.LSend_GG, new Dictionary<byte, object>());
 
 
-            resetWaitingList();
-            //checkWaitingStatus();
+        //    resetWaitingList();
+        //    //checkWaitingStatus();
             
            
-        }
+        //}
 
 
         override public int checkJoinSuccess(Dictionary<byte, object> event_params)
@@ -135,13 +145,16 @@ namespace STPhotonServer
 
             // check is playing
             if(play_in_game) return 2;
-
+            //else
+            //{
+            //    if (!checkEnoughTimeForRound()) return 0;
+            //}
             // check time available !!!
             
-            //int mpair_waiting = (waiting_list.Count - (icur_player + mcur_player)) / 2;
-            bool time_available = checkTimeAvailable(1);
+            ////int mpair_waiting = (waiting_list.Count - (icur_player + mcur_player)) / 2;
+            //bool time_available = checkTimeAvailable(1);
 
-            if(!time_available) return 0;
+            //if(!time_available) return 0;
 
             return 1;
             
@@ -245,7 +258,7 @@ namespace STPhotonServer
 
             play_in_game = true;
 
-            this.StartGame();
+            this.StartRound();
 
         }
         private void sendStartRun(){
@@ -267,7 +280,7 @@ namespace STPhotonServer
                 // start new game
                 if(wait_timer!=null) wait_timer.Close();
 
-                if (checkTimeAvailable(1))
+                if (checkEnoughTimeForRound())
                 {
                     //check is in game?
                     if(!play_in_game) readyToStart();
@@ -326,17 +339,29 @@ namespace STPhotonServer
 
         }
 
-        private void EndRound(object sender, ElapsedEventArgs e)
+
+        public override void EndRound()
         {
+            base.EndRound();
 
-            if (wait_timer != null) wait_timer.Close();
-            if (stage_timer != null) stage_timer.Close();
-            if (ending_timer != null) ending_timer.Close();
+            resetWaitingList();
 
-
-            Log.Info(">>>>>  End Total Round - Game B <<<<<");
-            game_app.goNextGame();
         }
+
+        //private void EndTotalGame(object sender, ElapsedEventArgs e)
+        //{
+        //    EndTotalGame();
+        //}
+
+        //public void EndTotalGame(){
+        //    if (wait_timer != null) wait_timer.Close();
+        //    if (stage_timer != null) stage_timer.Close();
+        //    if (ending_timer != null) ending_timer.Close();
+
+
+        //    Log.Info(">>>>>  End Total Round - Game B <<<<<");
+        //    game_app.goNextGame();
+        //}
 
         #endregion
     }

@@ -12,10 +12,18 @@ namespace STPhotonServer
     class GameA :GameScene
     {
         Hashtable right_online_client, left_online_client;
+        int SINGLE_SPAN;
 
         public GameA(STGameApp app):base(app,0)
         {
-             GAME_SPAN=60000;
+             GAME_SPAN = 600000; // 10min
+             ROUND_SPAN = 300000; // 5:00
+
+             SINGLE_SPAN = 120000;
+
+             //GAME_SPAN = 600000; // 10min
+             //ROUND_SPAN = 120000; // 2min
+
              END_SPAN=5000;
              Client_Limit=20;
 
@@ -27,27 +35,39 @@ namespace STPhotonServer
         override public void InitGame()
         {
             base.InitGame();
-            this.StartGame();
+           // this.StartGame();
 
             right_online_client.Clear();
             left_online_client.Clear();
 
         }
+        
         override public void handleMessage(STServerPeer sender,STClientCode code,Dictionary<byte,object> event_params)
         {
             Dictionary<byte,object> response_params=new Dictionary<byte,object>();
             switch(code)
-            {
+            {   
                 case STClientCode.APP_Join:
                     
                     Log.Warn("Join Game A!!");
+                    //bool enough_time = checkEnoughTimeForPlayer();
+                    //if (!enough_time)
+                    //{
+                    //    Log.Debug("Not Enough Time!!");
+                    //    response_params.Add(1, 0);
+                    //}else{
 
-                    int join_success=checkJoinSuccess(event_params);                    
-                    response_params.Add(1,join_success);
-                    
+                        int join_success = checkJoinSuccess(event_params);
+                        response_params.Add(1, join_success);
+
+                        online_client.Add(sender);
+
+                        // if is first one joining
+                        //if(isWaiting()) StartRound();
+                    //}
                     sender.sendOpResponseToPeer(STServerCode.CJoin_Success,response_params);
 
-                    online_client.Add(sender);
+                    
                     break;
                 case STClientCode.APP_Set_Side:
 
@@ -81,18 +101,35 @@ namespace STPhotonServer
 
 
                 case STClientCode.APP_Set_Name:
-                    response_params.Add((byte)1, 1);
+
+                    //TODO:check id & side??
+
+
+
+                    String _name = (String)event_params[(byte)1];
+                    //check word
+                    
+                    bool isgood=game_app.checkGoodName(_name);
+                    
+                    response_params.Add((byte)1, isgood?1:2);
 
                     sender.sendOpResponseToPeer(STServerCode.CSet_Name_Success,response_params);
 
-                    String _name = (String)event_params[(byte)1];
-                    byte[] _bname=System.Text.Encoding.UTF8.GetBytes(_name);
-                    event_params[(byte)1] = _bname;
+                    if (isgood)
+                    {
+                        byte[] _bname = System.Text.Encoding.UTF8.GetBytes(_name);
+                        event_params[(byte)1] = _bname;
 
-                    game_app.SendNotifyLED(STServerCode.LSet_Name,event_params);
+                        game_app.SendNotifyLED(STServerCode.LSet_Name, event_params);
+                    }
+
                     break;
                 case STClientCode.APP_Set_House:
+                    
+                    //TODO: check id & side
                     response_params.Add((byte)1, 1);
+
+
                     sender.sendOpResponseToPeer(STServerCode.CSet_House_Success, response_params);
                     game_app.SendNotifyLED(STServerCode.LSet_House, event_params);
                     break;
@@ -106,11 +143,41 @@ namespace STPhotonServer
                 case STClientCode.APP_Shake:
                     game_app.SendNotifyLED(STServerCode.LSet_Shake, event_params);
                     break;
-                
+
+                case STClientCode.APP_Leave:
+                    game_app.SendNotifyLED(STServerCode.LSet_User_Leave, event_params);
+                    
+                    response_params.Add((byte)1, 1);
+                    sender.sendOpResponseToPeer(STServerCode.CSet_Leave_Success, response_params);
+                    
+                    /* TODO: disconnect finished player */
+                    //online_client.Remove(sender);
+                    //sender.Disconnect();
+
+                    break;
+                case STClientCode.LED_StartRun:
+                    bool enough_time_round = checkEnoughTimeForRound();
+                    if (isWaiting() && enough_time_round)
+                    {
+                        response_params.Add(1, 1);
+                        //sender.sendOpResponseToPeer(STServerCode.LGameB_Start, response_params);
+                        game_app.SendNotifyLED(STServerCode.LGameB_Start, response_params);
+                        StartRound();
+                        return;                    
+                    }
+                    
+                    Log.Debug("Not Enough Time!!");
+                    response_params.Add(1, 0);
+
+                    game_app.SendNotifyLED(STServerCode.LGameB_Start, response_params);
+
+
+                    break;
+
                 case STClientCode.LED_Score:
                     sender.sendOpResponseToPeer(STServerCode.LSend_Score_Success,response_params);
                     game_app.sendGameOverToAll(event_params);
-                    EndGame();
+                    EndRound();
 
                     break;
             }
@@ -139,6 +206,13 @@ namespace STPhotonServer
                 Log.Debug("Illegal Game!");
                 return 0;
             }
+            bool enough_time = checkEnoughTimeForPlayer();
+            if (!enough_time)
+            {
+                Log.Debug("Not Enough Time for Player!");
+                return 0;
+            }
+           
 
             return 1;
 
@@ -155,5 +229,26 @@ namespace STPhotonServer
             return sql_command.ExecuteNonQuery();
         }
 
+        public bool checkEnoughTimeForPlayer()
+        {
+
+            if (isWaiting())
+            {
+                Log.Warn("Check Time: No Game");
+                return false;
+            }
+            TimeSpan t = new TimeSpan(DateTime.Now.Ticks);
+            TimeSpan t2 = new TimeSpan(round_start_time.Ticks);
+
+            TimeSpan due = t.Subtract(t2).Duration();
+
+            double remain_time = ROUND_SPAN - due.TotalMilliseconds;
+
+            Log.Warn("Remain Round Time: " + remain_time);
+
+            bool is_enough = remain_time > SINGLE_SPAN; 
+
+            return is_enough;
+        }
     }
 }

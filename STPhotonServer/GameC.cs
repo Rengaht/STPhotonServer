@@ -21,14 +21,15 @@ namespace STPhotonServer
 
         public GameC(STGameApp app):base(app,2)
         {
-             GAME_SPAN=600000;
+             GAME_SPAN=600000; // 10min
+             ROUND_SPAN = GAME_SPAN;
              END_SPAN=3000;
              Client_Limit=20;
         }
         override public void InitGame()
         {
             base.InitGame();
-            this.StartGame();
+            this.StartRound();
         }
         override public void handleMessage(STServerPeer sender,STClientCode code,Dictionary<byte,object> event_params)
         {
@@ -61,20 +62,20 @@ namespace STPhotonServer
                     
                     break;
 
-                case STClientCode.LED_Score:
-                    sender.sendOpResponseToPeer(STServerCode.LSend_Score_Success,response_params);
-                    game_app.sendGameOverToAll(event_params);
-                    EndGame();
+                //case STClientCode.LED_Score:
+                //    sender.sendOpResponseToPeer(STServerCode.LSend_Score_Success,response_params);
+                //    game_app.sendGameOverToAll(event_params);
+                //    EndRound();
 
-                    break;
+                //    break;
             }
         }
 
-        override public void requestToEndGame(object sender, ElapsedEventArgs e)
-        {
+        //override public void requestToEndGame(object sender, ElapsedEventArgs e)
+        //{
 
-            this.EndGame();
-        }
+        //    this.EndGame();
+        //}
 
         override public int checkJoinSuccess(Dictionary<byte, object> event_params)
         {

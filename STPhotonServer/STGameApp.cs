@@ -7,14 +7,16 @@ using System.Linq;
 using System.Text;
 using System.Timers;
 using MySql.Data.MySqlClient;
+using System.Xml;
+using System.Data.SqlClient;
 
 namespace STPhotonServer
 {
     public class STGameApp
     {
-        public bool enable_db = false;
+        public bool enable_db = true;
 
-        bool debug_mode = true;
+        bool debug_mode = false;
         int debug_game = 0;
 
         protected static readonly ILogger Log=LogManager.GetCurrentClassLogger();
@@ -31,29 +33,71 @@ namespace STPhotonServer
         }
         List<String> aclient_id;
         
-        MySqlConnection sql_connection;
-        MySqlCommand sql_command;
+        MySqlConnection sql_connection,dword_sql_connection,schedule_sql_connection;
+        MySqlCommand sql_command,dword_cmd,schedule_cmd;
 
         STServerPeer led_peer;
         public STServerPeer LED_Peer {
             set { led_peer=value; }
         }
-        
-       
+
+        private bool switchable_mode = true;
+        private int switch_next_game = -1;
+
+
+
 
         public STGameApp(List<PeerBase> lpeer_)
         {
             aclient_peer=lpeer_;
             LED_Ready=false;
 
-           
+            XmlDocument doc = new XmlDocument();
+            doc.Load("../server_params.xml");            
+            String sql_address = doc.DocumentElement.SelectSingleNode("/SQL_DATA/ADDRESS").InnerText;           
+            String sql_uid = doc.DocumentElement.SelectSingleNode("/SQL_DATA/UID").InnerText;
+            String sql_pass = doc.DocumentElement.SelectSingleNode("/SQL_DATA/PASSWORD").InnerText;
+
+            String sql_str = "server=" + sql_address + ";uid=" + sql_uid + ";pwd=" + sql_pass+";";
+            Log.Info("SQL INFO: "+sql_str);
+
             // open db
             if (enable_db)
             {
-                string connString = "server=127.0.0.1;uid=root;pwd=reng;database=stapp_logdb";
+                string connString = sql_str+"database=stapp_logdb;CharSet=utf8";
                 sql_connection = new MySqlConnection(connString);
                 sql_command = sql_connection.CreateCommand();
                 sql_connection.Open();
+
+                string dconnString = sql_str + "database=dirtydb;CharSet=utf8";
+                dword_sql_connection = new MySqlConnection(dconnString);
+                dword_sql_connection.Open();
+
+                if (dword_sql_connection != null)
+                {
+                    dword_cmd = new MySqlCommand();
+                    dword_cmd.Connection = dword_sql_connection;
+                    dword_cmd.CommandText = "find_word";
+                    dword_cmd.CommandType = System.Data.CommandType.StoredProcedure;
+                    dword_cmd.Parameters.AddWithValue("@pword", "name");
+                    dword_cmd.Parameters["@pword"].Direction = System.Data.ParameterDirection.Input;
+
+
+                    dword_cmd.Parameters.AddWithValue("@pcount", MySqlDbType.Int32);
+                    dword_cmd.Parameters["@pcount"].Direction = System.Data.ParameterDirection.Output;
+                }
+
+                string sconnString = sql_str + "database=stapp_schedule;";
+                schedule_sql_connection = new MySqlConnection(sconnString);
+                schedule_cmd = schedule_sql_connection.CreateCommand();
+                schedule_sql_connection.Open();
+
+                getHourlyGameSchedule();
+                getGameSchedule();
+
+                //checkGoodName("aaa");
+                //checkGoodName("animalsex");
+
             }
 
             aclient_id = new List<String>();
@@ -90,6 +134,9 @@ namespace STPhotonServer
             Log.Debug("APP Init Game "+game_index);
             
             cur_game=game_index;
+
+            if (cur_game < 0) return;
+
             agame_scene[cur_game].InitGame();
             
 
@@ -102,14 +149,30 @@ namespace STPhotonServer
                 peer.sendEventToPeer(event_data);
             }
 
-          
+            switch_next_game = -1;
         }
        
         public void goNextGame()
         {
-            if (debug_mode) initGame(debug_game);
-            else initGame((cur_game + 1) % 3);
-            //initGame(2);
+            Log.Warn(">>>> Go Next Game");
+            if (debug_mode) {
+                if (switchable_mode)
+                {
+                    Log.Warn("Switch to Game: "+switch_next_game);
+                    if (switch_next_game > -1)
+                    {
+                        initGame(switch_next_game);
+                   
+                    }
+                    else initGame(cur_game);
+
+                    return;
+                }
+                else initGame(debug_game);
+            }
+            else{
+                initGame(getGameSchedule() - 1);
+            }
         }
 
         public void SendNotifyLED(STServerCode event_code,Dictionary<byte,Object> event_param)
@@ -148,7 +211,10 @@ namespace STPhotonServer
             LED_Ready=true;
 
             if (debug_mode) initGame(debug_game);
-            else initGame(0);
+            else
+            {
+                initGame(getGameSchedule());
+            }
         }
         
         public void requestGameScore()
@@ -238,6 +304,17 @@ namespace STPhotonServer
             return -1;
         }
 
+        public void switchGame(int switch_to_game)
+        {
+            if (cur_game == switch_to_game) return;
+
+            switch_next_game = switch_to_game;
+
+
+           agame_scene[cur_game].ForceEndGame();
+
+        }
+
 
 #region Handle Sql
 
@@ -277,6 +354,89 @@ namespace STPhotonServer
         {
             if (!enable_db) return null;
             return sql_connection;
+        }
+
+        public bool checkGoodName(String name)
+        {
+
+            if (!enable_db) return true;
+
+            dword_cmd.Parameters["@pword"].Value = name;
+            dword_cmd.ExecuteNonQuery();
+
+            int pcount = (int)dword_cmd.Parameters["@pcount"].Value;
+            Log.Warn("Check Good Word In db: "+pcount);
+
+            return !(pcount>0);
+        }
+
+        public int[] getHourlyGameSchedule()
+        {
+            int mhour=24;
+            int mseg=6;
+
+            int[] arr_game = new int[mhour*mseg];
+            for (int x = 0; x < mhour; ++x)
+            {
+                String str_hour = String.Format("{0:00}", x);
+                String p = "";
+                for (int i = 0; i < mseg; ++i)
+                {
+                    String str_min = String.Format("{0:00}",i*10);
+                    String sql_str = "SELECT * FROM timetab WHERE start_time='" + str_hour +str_min +"'";
+
+                    schedule_cmd.CommandText = sql_str;
+                    MySqlDataReader reader = schedule_cmd.ExecuteReader();
+                    
+                    if(reader.Read()){
+                    
+                            arr_game[i+x*mseg] = reader.GetInt32(1);
+                            p += (arr_game[i]-1);
+                    }
+                    reader.Close();
+                }
+
+                Log.Info("Hour Schedule: " + str_hour + "  -> " + p);
+            
+            }
+            
+
+            return arr_game;
+        }
+        public int getGameSchedule()
+        {
+            var date = DateTime.Now;
+            
+            return getGameSchedule(date.Hour,date.Minute);
+        }
+        
+
+        public int getGameSchedule(int ihour,int iminute)
+        {
+
+            int imin = (int)Math.Floor(iminute / 10.0); 
+            
+            int[] arr_game = new int[6];
+            String str_hour = String.Format("{0:00}", ihour);
+            String str_min = String.Format("{0:00}", imin * 10);
+            String sql_str = "SELECT * FROM timetab WHERE start_time='" + str_hour + str_min + "'";
+
+            int igame = 0;
+
+            schedule_cmd.CommandText = sql_str;
+            MySqlDataReader reader = schedule_cmd.ExecuteReader();
+            if(reader.Read())
+            {
+                object i=reader.GetValue(1);
+              
+                if(i!=null) igame=(Int32)i;
+                    
+            }
+            reader.Close();
+
+            Log.Info("--------  Read Game Schedule: " + str_hour + str_min + " -> " + igame + " --------");
+
+            return igame-1;
         }
 #endregion
 

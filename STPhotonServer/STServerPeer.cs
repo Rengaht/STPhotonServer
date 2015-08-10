@@ -150,7 +150,11 @@ namespace STPhotonServer
                             this.client_id = get_id;
 
                             break;
+                        case STClientCode.LED_SwitchGame:
+                            int switch_to_game = (int)event_params[(byte)1];
+                            game_app.switchGame(switch_to_game);
 
+                            break;
                         default:
                             //Log.Warn("Undefined event code= "+event_code.ToString());
                             if (game_app.led_ready)
