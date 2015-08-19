@@ -212,6 +212,8 @@ namespace STPhotonServer
             if (waiting_list != null) waiting_list.Clear();
             else waiting_list = new List<STServerPeer>();
 
+            
+
             if (wait_timer != null) wait_timer.Close();
             wait_timer = null;
 

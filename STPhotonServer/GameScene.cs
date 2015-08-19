@@ -96,7 +96,11 @@ namespace STPhotonServer
         {
             Log.Warn(">>>> Game Round End");
 
-           //
+            /* disconnect all peer */
+            foreach (STServerPeer peer in online_client)
+            {
+                peer.delayDisconnect();
+            }
             
             cur_state=Game_State.Waiting;
 
@@ -112,24 +116,39 @@ namespace STPhotonServer
             if(total_game_timer!=null) total_game_timer.Close();
             if(end_delay_timer!=null) end_delay_timer.Close();
 
+            /* compute the remaining time to next "10 min" */
+            DateTime now=DateTime.Now;
+            int dest_ten = (int)Math.Floor(now.Minute / 10.0) + 1;
+            int dest_hour = now.Hour + ((dest_ten == 6) ? 1 : 0);
+            dest_ten = (dest_ten == 6) ? 0 : dest_ten * 10;
+            DateTime dten= new DateTime(now.Year,now.Month,now.Day,dest_hour,dest_ten,0,0,now.Kind);
 
-            total_game_timer=new Timer(GAME_SPAN);
+            TimeSpan t = new TimeSpan(now.Ticks);
+            TimeSpan t2 = new TimeSpan(dten.Ticks);
+
+            TimeSpan due = t.Subtract(t2).Duration();
+            double time_to_ten = due.TotalMilliseconds;
+
+            total_game_timer = new Timer(time_to_ten);
             total_game_timer.Elapsed += new ElapsedEventHandler(reallyEndGame);
             total_game_timer.AutoReset=false;
             total_game_timer.Enabled=true;
+            //total_game_timer.Start();
+
+            Log.Info("Start Game Timer: "+Math.Floor(due.TotalMinutes)+":"+(due.TotalSeconds%60));
 
         }
 
-        private void prepareToEndGame(object sender, ElapsedEventArgs e)
-        {
-            if(end_delay_timer!=null) end_delay_timer.Close();
+        //private void prepareToEndGame(object sender, ElapsedEventArgs e)
+        //{
+        //    if(end_delay_timer!=null) end_delay_timer.Close();
 
-            end_delay_timer=new Timer(END_SPAN);
-            end_delay_timer.Elapsed+=new ElapsedEventHandler(reallyEndGame);
-            end_delay_timer.AutoReset=false;
-            end_delay_timer.Enabled=true;
-
-        }
+        //    end_delay_timer=new Timer(END_SPAN);
+        //    end_delay_timer.Elapsed+=new ElapsedEventHandler(reallyEndGame);
+        //    end_delay_timer.AutoReset=false;
+        //    end_delay_timer.Enabled=true;
+        //    //end_delay_timer.Start();
+        //}
 
        
         virtual public void reallyEndGame(object sender,ElapsedEventArgs e)
@@ -166,7 +185,7 @@ namespace STPhotonServer
 
             double remain_time = GAME_SPAN-due.TotalMilliseconds;
             
-            Log.Warn("Remain Game Time: "+remain_time);
+            Log.Warn("Remain Game Time: "+Math.Floor(remain_time/60000)+":"+Math.Floor(remain_time/1000)%60);
             
             bool is_enough=remain_time > ROUND_SPAN;
 

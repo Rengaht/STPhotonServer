@@ -50,6 +50,10 @@ namespace STPhotonServer
               
                 case STClientCode.APP_Face:
                     sender.sendOpResponseToPeer(STServerCode.CSet_Face_Success, response_params);
+                    
+                    /* disconnect finished player */
+                    sender.delayDisconnect();
+
 
                     // TODO: save to server
                     String uid=(String)event_params[(byte)100];
@@ -71,11 +75,12 @@ namespace STPhotonServer
             }
         }
 
-        //override public void requestToEndGame(object sender, ElapsedEventArgs e)
-        //{
-
-        //    this.EndGame();
-        //}
+        override public void reallyEndGame(object sender, ElapsedEventArgs e)
+        {
+            EndRound();
+            base.reallyEndGame(sender, e);
+            
+        }
 
         override public int checkJoinSuccess(Dictionary<byte, object> event_params)
         {

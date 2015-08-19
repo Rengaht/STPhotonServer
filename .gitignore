@@ -41,3 +41,13 @@ $RECYCLE.BIN/
 Network Trash Folder
 Temporary Items
 .apdisk
+*.dll
+STPhotonServer/bin_b/STPhotonServer.pdb
+*.suo
+*.pdb
+*.dll
+*.dll
+*.config
+*.xml
+*.dll
+*.pdb

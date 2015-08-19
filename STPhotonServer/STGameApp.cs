@@ -44,8 +44,8 @@ namespace STPhotonServer
         private bool switchable_mode = true;
         private int switch_next_game = -1;
 
-
-
+        private Timer timer_cleaner;
+        private int CLEAN_SPAN = 5000;
 
         public STGameApp(List<PeerBase> lpeer_)
         {
@@ -93,7 +93,7 @@ namespace STPhotonServer
                 schedule_sql_connection.Open();
 
                 getHourlyGameSchedule();
-                getGameSchedule();
+                //getGameSchedule();
 
                 //checkGoodName("aaa");
                 //checkGoodName("animalsex");
@@ -171,7 +171,7 @@ namespace STPhotonServer
                 else initGame(debug_game);
             }
             else{
-                initGame(getGameSchedule() - 1);
+                initGame(getGameSchedule()-1);
             }
         }
 
@@ -213,7 +213,7 @@ namespace STPhotonServer
             if (debug_mode) initGame(debug_game);
             else
             {
-                initGame(getGameSchedule());
+                initGame(getGameSchedule()-1);
             }
         }
         
@@ -292,11 +292,31 @@ namespace STPhotonServer
                 LED_Ready = false;
             }
         }
-        private void clearClientList()
+        public void killPeer(STServerPeer peer)
         {
-            aclient_peer.RemoveAll(s=> !s.Connected);
+            Log.Debug("Kill Peer: "+peer.client_id);
+            peer.Disconnect();
 
+            setupCleaner();
         }
+        private void clearClientList(object sender, ElapsedEventArgs e)
+        {            
+            aclient_peer.RemoveAll(s=> !s.Connected);
+            agame_scene[cur_game].online_client.RemoveAll(s => !s.Connected);
+           
+            Log.Debug("Clear List, rest client= " + aclient_peer.Count);
+        }
+        private void setupCleaner()
+        {
+            if(timer_cleaner!= null) timer_cleaner.Close();            
+
+            timer_cleaner = new Timer(CLEAN_SPAN);
+            timer_cleaner.Elapsed += new ElapsedEventHandler(clearClientList);
+            timer_cleaner.AutoReset = false;
+            timer_cleaner.Enabled = true;
+   
+        }
+
         public int getCurGame()
         {
             checkLed();
@@ -314,7 +334,7 @@ namespace STPhotonServer
            agame_scene[cur_game].ForceEndGame();
 
         }
-
+       
 
 #region Handle Sql
 
@@ -436,9 +456,11 @@ namespace STPhotonServer
 
             Log.Info("--------  Read Game Schedule: " + str_hour + str_min + " -> " + igame + " --------");
 
-            return igame-1;
+            return igame;
         }
 #endregion
 
+
+     
     }
 }

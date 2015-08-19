@@ -17,7 +17,7 @@ namespace STPhotonServer
         public GameA(STGameApp app):base(app,0)
         {
              GAME_SPAN = 600000; // 10min
-             ROUND_SPAN = 300000; // 5:00
+             ROUND_SPAN = 296000; // 5:00
 
              SINGLE_SPAN = 120000;
 
@@ -60,7 +60,7 @@ namespace STPhotonServer
                         int join_success = checkJoinSuccess(event_params);
                         response_params.Add(1, join_success);
 
-                        online_client.Add(sender);
+                        if(join_success==1) online_client.Add(sender);
 
                         // if is first one joining
                         //if(isWaiting()) StartRound();
@@ -150,9 +150,8 @@ namespace STPhotonServer
                     response_params.Add((byte)1, 1);
                     sender.sendOpResponseToPeer(STServerCode.CSet_Leave_Success, response_params);
                     
-                    /* TODO: disconnect finished player */
-                    //online_client.Remove(sender);
-                    //sender.Disconnect();
+                    /* disconnect finished player */
+                    sender.delayDisconnect();
 
                     break;
                 case STClientCode.LED_StartRun:

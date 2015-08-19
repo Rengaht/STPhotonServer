@@ -8,6 +8,7 @@ using PhotonHostRuntimeInterfaces;
 using ExitGames.Logging;
 using System.Collections;
 using ExitGames.Concurrency.Fibers;
+using System.Timers;
 
 namespace STPhotonServer
 {
@@ -22,6 +23,9 @@ namespace STPhotonServer
         private Boolean is_led=false;
         private readonly IFiber fiber;
         public String client_id { get; set; }
+        
+        private Timer timer_disconnect;
+        private int DELAY_SPAN = 7000;
 
 
         public STServerPeer(IRpcProtocol rpcProtocol, IPhotonPeer nativePeer,STGameApp ga)
@@ -203,6 +207,18 @@ namespace STPhotonServer
                             
         }
 
+        public void delayDisconnect()
+        {
+            timer_disconnect = new Timer(DELAY_SPAN);
+            timer_disconnect.Elapsed += new ElapsedEventHandler(doDisconnect);
+            timer_disconnect.AutoReset = false;
+            timer_disconnect.Enabled = true;
+        }
 
+        public void doDisconnect(object sender, ElapsedEventArgs e)
+        {
+            this.Disconnect();
+            game_app.killPeer(this);
+        }
     }
 }
