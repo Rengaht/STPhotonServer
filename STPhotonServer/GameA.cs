@@ -12,18 +12,18 @@ namespace STPhotonServer
     class GameA :GameScene
     {
         Hashtable right_online_client, left_online_client;
-        int SINGLE_SPAN;
+        int INTERACTIVE_SPAN;
+        int TIMEOUT_SPAN;
 
         public GameA(STGameApp app):base(app,0)
         {
              GAME_SPAN = 600000; // 10min
              ROUND_SPAN = 296000; // 5:00
 
-             SINGLE_SPAN = 120000;
+             INTERACTIVE_SPAN = 120000;
 
-             //GAME_SPAN = 600000; // 10min
-             //ROUND_SPAN = 120000; // 2min
-
+             TIMEOUT_SPAN = 300000;
+            
              END_SPAN=5000;
              Client_Limit=20;
 
@@ -44,11 +44,13 @@ namespace STPhotonServer
         
         override public void handleMessage(STServerPeer sender,STClientCode code,Dictionary<byte,object> event_params)
         {
+
+            String sid=(event_params.ContainsKey((byte)100))?(String)event_params[(byte)100]:"";
+
             Dictionary<byte,object> response_params=new Dictionary<byte,object>();
-            switch(code)
-            {   
+
+            switch(code){
                 case STClientCode.APP_Join:
-                    
                     Log.Warn("Join Game A!!");
                     //bool enough_time = checkEnoughTimeForPlayer();
                     //if (!enough_time)
@@ -57,20 +59,61 @@ namespace STPhotonServer
                     //    response_params.Add(1, 0);
                     //}else{
 
-                        int join_success = checkJoinSuccess(event_params);
-                        response_params.Add(1, join_success);
+                    int join_success = checkJoinSuccess(event_params);
+                    response_params.Add(1, join_success);
 
-                        if(join_success==1) online_client.Add(sender);
+                    if (join_success == 1)
+                    {
+                        online_client.Add(sender);
+                        addIdInGame(sid);
 
+                        InsertToSql(new String[] { sid, "Join Game"});
+                    }
                         // if is first one joining
                         //if(isWaiting()) StartRound();
                     //}
                     sender.sendOpResponseToPeer(STServerCode.CJoin_Success,response_params);
+                    return;
 
+                case STClientCode.LED_StartRun:
+                    bool enough_time_round = checkEnoughTimeForRound();
+                    if (isWaiting() && enough_time_round)
+                    {
+                        response_params.Add(1, 1);
+                        //sender.sendOpResponseToPeer(STServerCode.LGameB_Start, response_params);
+                        game_app.SendNotifyLED(STServerCode.LGameB_Start, response_params);
+                        StartRound();
+                        return;                    
+                    }
                     
-                    break;
-                case STClientCode.APP_Set_Side:
+                    Log.Debug("Not Enough Time!!");
+                    response_params.Add(1, 0);
 
+                    game_app.SendNotifyLED(STServerCode.LGameB_Start, response_params);
+
+
+                    return;
+
+                case STClientCode.LED_Score:
+                    sender.sendOpResponseToPeer(STServerCode.LSend_Score_Success,response_params);
+                    game_app.sendGameOverToAll(event_params);
+                    EndRound();
+
+                    return;
+                
+              
+            }
+                
+            if(!isIdInGame(sid)){
+                Log.Error("!! Not in-game ID: "+sid+" ! Kill it!!");
+                sender.delayDisconnect(3);
+                return;
+            }
+
+            switch(code)
+            {                  
+                case STClientCode.APP_Set_Side:
+                   
                     bool has_vacancy = false;
                     int side_index=-1;
                     if ((int)event_params[(byte)101] == 1)
@@ -93,6 +136,7 @@ namespace STPhotonServer
                     }
                     response_params.Add(1,has_vacancy?1:0);
                     response_params.Add(101, side_index);
+                    
                     sender.sendOpResponseToPeer(STServerCode.CSet_Side_Success,response_params);
                     
                     game_app.SendNotifyLED(STServerCode.LAdd_House, event_params);
@@ -103,35 +147,36 @@ namespace STPhotonServer
                 case STClientCode.APP_Set_Name:
 
                     //TODO:check id & side??
-
-
-
-                    String _name = (String)event_params[(byte)1];
-                    //check word
                     
+                    String _name = (String)event_params[(byte)1];
+                    //check word                    
                     bool isgood=game_app.checkGoodName(_name);
                     
                     response_params.Add((byte)1, isgood?1:2);
-
-                    sender.sendOpResponseToPeer(STServerCode.CSet_Name_Success,response_params);
-
+                                        
                     if (isgood)
                     {
                         byte[] _bname = System.Text.Encoding.UTF8.GetBytes(_name);
                         event_params[(byte)1] = _bname;
 
                         game_app.SendNotifyLED(STServerCode.LSet_Name, event_params);
+
+                        InsertToSql(new String[]{sid,"Name: "+_name});
                     }
+                   
+
+                    sender.sendOpResponseToPeer(STServerCode.CSet_Name_Success,response_params);
 
                     break;
                 case STClientCode.APP_Set_House:
                     
                     //TODO: check id & side
+                    
                     response_params.Add((byte)1, 1);
-
-
-                    sender.sendOpResponseToPeer(STServerCode.CSet_House_Success, response_params);
                     game_app.SendNotifyLED(STServerCode.LSet_House, event_params);
+                    
+                    sender.sendOpResponseToPeer(STServerCode.CSet_House_Success, response_params);
+                    
                     break;
 
                 case STClientCode.APP_Blow:
@@ -142,9 +187,11 @@ namespace STPhotonServer
                     break;
                 case STClientCode.APP_Shake:
                     game_app.SendNotifyLED(STServerCode.LSet_Shake, event_params);
+
                     break;
 
                 case STClientCode.APP_Leave:
+                    
                     game_app.SendNotifyLED(STServerCode.LSet_User_Leave, event_params);
                     
                     response_params.Add((byte)1, 1);
@@ -153,32 +200,11 @@ namespace STPhotonServer
                     /* disconnect finished player */
                     sender.delayDisconnect();
 
-                    break;
-                case STClientCode.LED_StartRun:
-                    bool enough_time_round = checkEnoughTimeForRound();
-                    if (isWaiting() && enough_time_round)
-                    {
-                        response_params.Add(1, 1);
-                        //sender.sendOpResponseToPeer(STServerCode.LGameB_Start, response_params);
-                        game_app.SendNotifyLED(STServerCode.LGameB_Start, response_params);
-                        StartRound();
-                        return;                    
-                    }
-                    
-                    Log.Debug("Not Enough Time!!");
-                    response_params.Add(1, 0);
-
-                    game_app.SendNotifyLED(STServerCode.LGameB_Start, response_params);
-
+                    removeIdInGame(sid);
+                    InsertToSql(new String[] { sid, "Leave"});
 
                     break;
-
-                case STClientCode.LED_Score:
-                    sender.sendOpResponseToPeer(STServerCode.LSend_Score_Success,response_params);
-                    game_app.sendGameOverToAll(event_params);
-                    EndRound();
-
-                    break;
+                
             }
         }
 
@@ -221,9 +247,12 @@ namespace STPhotonServer
         {
             if (sql_command == null) return 0;
 
+            game_app.checkSqlConnection();
+
             sql_command.Parameters.Clear();
             sql_command.Parameters.AddWithValue("@Timestamp",DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
             sql_command.Parameters.AddWithValue("@Uid", cmd_values[0]);
+            sql_command.Parameters.AddWithValue("@Status", cmd_values[1]);
 
             return sql_command.ExecuteNonQuery();
         }
@@ -245,7 +274,7 @@ namespace STPhotonServer
 
             Log.Warn("Remain Round Time: " + remain_time);
 
-            bool is_enough = remain_time > SINGLE_SPAN; 
+            bool is_enough = remain_time > INTERACTIVE_SPAN; 
 
             return is_enough;
         }

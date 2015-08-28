@@ -4,10 +4,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
-using System.Threading;
+//using System.Threading;
 using System.Timers;
+//using System.Timers.Timer;
 
-
+using System.Drawing;
 
 namespace STPhotonServer
 {
@@ -16,8 +17,13 @@ namespace STPhotonServer
 
     class GameC:GameScene
     {
-        static String SERVER_PATH = "C://Users/Administrator/Desktop/KerkerPhoto/";
 
+        static String SERVER_PATH = "C://Users/Administrator/Desktop/KerkerPhoto/";
+        static int CLOCK_SPAN = 60000;
+
+        
+        bool clock_mode = false;
+        Timer clock_mode_timer;
 
         public GameC(STGameApp app):base(app,2)
         {
@@ -30,40 +36,77 @@ namespace STPhotonServer
         {
             base.InitGame();
             this.StartRound();
+
+            // set clock_mode_timer for last 1 min
+            clock_mode = false;
+            double time_to_clock = getGameRemainTime() - CLOCK_SPAN;
+            if (time_to_clock > 0)
+            {
+                clock_mode_timer = new Timer(time_to_clock);
+                clock_mode_timer.Elapsed += new ElapsedEventHandler(startClockMode);
+                clock_mode_timer.AutoReset = false;
+                clock_mode_timer.Enabled = true;
+            }
+
         }
         override public void handleMessage(STServerPeer sender,STClientCode code,Dictionary<byte,object> event_params)
         {
+            String sid = (event_params.ContainsKey((byte)100)) ? (String)event_params[(byte)100] : "";
+
             Dictionary<byte,object> response_params=new Dictionary<byte,object>();
             switch(code)
             {
                 case STClientCode.APP_Join:
                     Log.Warn("Join Game C!!");
-                    String client_id=(String)event_params[(byte)100];
-                    if(!online_client.Contains(sender)) online_client.Add(sender);
-
-                    response_params.Add(1,checkJoinSuccess(event_params));
+                    
+                    int success=checkJoinSuccess(event_params);
+                    response_params.Add(1,success);
                     //response_params.Add(2,game_app.getClientIndex(sender));
-
+                    if (success == 1)
+                    {
+                        if (!online_client.Contains(sender)) online_client.Add(sender);
+                        addIdInGame(sid);
+                    }
                     sender.sendOpResponseToPeer(STServerCode.CJoin_Success,response_params);
+
+
                     break;
 
               
                 case STClientCode.APP_Face:
-                    sender.sendOpResponseToPeer(STServerCode.CSet_Face_Success, response_params);
-                    
+                   
+                    if (isIdInGame(sid))
+                    {
+                        // TODO: save to server
+                        String uid = (String)event_params[(byte)100];
+                        byte[] image_byte = Convert.FromBase64String((String)event_params[(byte)2]);
+
+                        bool img_good = checkImage(image_byte);
+                        if (img_good)
+                        {
+                            String file_path = saveImage(uid, image_byte);
+                            InsertToSql(new String[] { uid, file_path });
+                            //event_params[(byte)2] = file_path;
+                            game_app.SendNotifyLED(STServerCode.LSet_Face, event_params);
+                            response_params.Add((byte)1, 1);
+                        }
+                        else
+                        {
+                            response_params.Add((byte)1, 0);
+                        }
+                        
+                        sender.sendOpResponseToPeer(STServerCode.CSet_Face_Success, response_params);
+                        
+                        
+                    }
+                    else
+                    {
+                        Log.Error("!! Not in-game ID: " + sid + " ! Kill it!!");
+                    }
                     /* disconnect finished player */
                     sender.delayDisconnect();
+                    removeIdInGame(sid);
 
-
-                    // TODO: save to server
-                    String uid=(String)event_params[(byte)100];
-                    String file_path = saveImage(uid,(String)event_params[(byte)2]);
-
-                    //event_params[(byte)2] = file_path;
-                    game_app.SendNotifyLED(STServerCode.LSet_Face,event_params);
-
-                    InsertToSql(new String[]{uid,file_path});
-                    
                     break;
 
                 //case STClientCode.LED_Score:
@@ -73,6 +116,11 @@ namespace STPhotonServer
 
                 //    break;
             }
+        }
+        private void startClockMode(object sender, ElapsedEventArgs e)
+        {
+            clock_mode = true;
+            game_app.SendNotifyLED(STServerCode.LSet_ClockMode, new Dictionary<byte, object>());
         }
 
         override public void reallyEndGame(object sender, ElapsedEventArgs e)
@@ -86,18 +134,38 @@ namespace STPhotonServer
         {
             //TODO: check id, check vacancy
             bool correct_id = game_app.checkValidId((String)event_params[(byte)100]);
-
+            if (!correct_id)
+            {
+                Log.Debug("Illegal ID!");
+                return 0;
+            }
             bool has_vacancy = online_client.Count < Client_Limit;
-
+            if (!has_vacancy)
+            {
+                Log.Debug("No Vacancy!");
+                return 0;
+            }
             bool correct_game = ((int)event_params[(byte)1] == 2);
+            if (!correct_game)
+            {
+                Log.Debug("Incorrect Game: "+(int)event_params[(byte)1]+"!");
+                return 0;
+            }
 
-            if(correct_id && has_vacancy && correct_game) return 1;
-            return 0;
+            if (clock_mode)
+            {
+                Log.Debug("Now Clock Mode!");
+                return 0;
+            }
+
+            return 1;
         }
 
         override public int InsertToSql(String[] cmd_values)
         {
             if (sql_command == null) return 0;
+
+            game_app.checkSqlConnection();
 
             sql_command.Parameters.Clear();
             sql_command.Parameters.AddWithValue("@Timestamp", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
@@ -108,15 +176,26 @@ namespace STPhotonServer
         }
 
 
-        private String saveImage(String user_id, String encoded_image)
+        private String saveImage(String user_id, byte[] abyte)
         {
-            byte[] image_byte = Convert.FromBase64String(encoded_image);
+           
             String file_path = SERVER_PATH + "user_" + DateTime.Now.ToString("yyyyMMDD_HHmm")+"_" + user_id + ".png";
+            
 
-
-            Task.Factory.StartNew(() => File.WriteAllBytes(file_path, image_byte));
+            Task task_save=Task.Factory.StartNew(() => File.WriteAllBytes(file_path, abyte));
+            
             return file_path;
 
+        }
+        private bool checkImage(byte[] abyte)
+        {
+            MemoryStream ms = new MemoryStream(abyte);
+            Image img = Image.FromStream(ms);
+
+            Log.Debug("Check Image Size: "+img.Size.Width+" x "+img.Size.Height);
+
+            if (img.Size.Width>= 104 && img.Size.Height>=104) return true;
+            return false;
         }
         
 

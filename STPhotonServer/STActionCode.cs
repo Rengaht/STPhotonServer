@@ -62,7 +62,7 @@ namespace STPhotonServer
         LRequest_Score=202,
         LSend_Score_Success=203,
         LSend_GG=204,
-        
+        LSet_ClockMode=205,
 
         LAdd_House=211,
         LSet_Name=212,

@@ -141,6 +141,10 @@ namespace STPhotonServer
 
                                 id_params.Add((byte)3, valid_id ? 1 : 0);
                                 id_params.Add((byte)100, get_id);
+
+                                id_params.Add((byte)200,game_app.getIosVersion());
+                                id_params.Add((byte)201, game_app.getAndroidVersion());
+
                             }
 
                             OperationResponse id_response=new OperationResponse((byte)STServerCode.Id_And_Game_Info,id_params)
@@ -161,7 +165,8 @@ namespace STPhotonServer
                             break;
                         default:
                             //Log.Warn("Undefined event code= "+event_code.ToString());
-                            if (game_app.led_ready)
+                           
+                           if (game_app.checkLed())
                             {
                                 game_app.handleMessage(this, event_code, event_params);
                             }
@@ -209,7 +214,12 @@ namespace STPhotonServer
 
         public void delayDisconnect()
         {
-            timer_disconnect = new Timer(DELAY_SPAN);
+            delayDisconnect(DELAY_SPAN);
+        }
+
+        public void delayDisconnect(float dtime)
+        {
+            timer_disconnect = new Timer(dtime);
             timer_disconnect.Elapsed += new ElapsedEventHandler(doDisconnect);
             timer_disconnect.AutoReset = false;
             timer_disconnect.Enabled = true;
