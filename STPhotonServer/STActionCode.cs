@@ -45,6 +45,8 @@ namespace STPhotonServer
 
         CSend_GG=153,
 
+        CChange_Game=154,
+
         CSet_Side_Success=160,
         CSet_Name_Success=161,
         CSet_House_Success=162,

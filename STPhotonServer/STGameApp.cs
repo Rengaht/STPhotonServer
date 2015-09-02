@@ -189,7 +189,7 @@ namespace STPhotonServer
 
             SendNotifyLED(STServerCode.Id_And_Game_Info,new Dictionary<byte,object>() { { (byte)1,cur_game } });
 
-            EventData event_data = new EventData((byte)STServerCode.Id_And_Game_Info,
+            EventData event_data = new EventData((byte)STServerCode.CChange_Game,
                                                new Dictionary<byte,object>() { { (byte)1,cur_game}});
             foreach(STServerPeer peer in aclient_peer)
             {
@@ -207,24 +207,25 @@ namespace STPhotonServer
         public void goNextGame()
         {
             Log.Warn(">>>> Go Next Game");
-            if (debug_mode) {
-                if (switchable_mode)
-                {
-                    Log.Warn("Switch to Game: "+switch_next_game);
-                    if (switch_next_game > -1)
-                    {
-                        initGame(switch_next_game);
+            //if (debug_mode) {
+            //    if (switchable_mode)
+            //    {
+            //        Log.Warn("Switch to Game: "+switch_next_game);
+            //        if (switch_next_game > -1)
+            //        {
+            //            initGame(switch_next_game);
                    
-                    }
-                    else initGame(cur_game);
+            //        }
+            //        else initGame(cur_game);
 
-                    return;
-                }
-                else initGame(debug_game);
-            }
-            else{
-                initGame(getGameSchedule()-1);
-            }
+            //        return;
+            //    }
+            //    else initGame(debug_game);
+            //}
+            //else{
+            //    initGame(getGameSchedule()-1);
+            //}
+            initGame(getGameSchedule() - 1);
         }
 
         public void SendNotifyLED(STServerCode event_code,Dictionary<byte,Object> event_param)
@@ -357,8 +358,23 @@ namespace STPhotonServer
             if (led_peer==null || !led_peer.Connected)
             {
                 LED_Ready = false;
+                
+                Log.Warn("Check LED NOT Ready!");
+                
+            }
+            else
+            {
+                Log.Warn("Check LED Ready!");
+                LED_Ready = true;
             }
             return LED_Ready;
+        }
+        public void killAllPeer()
+        {
+            foreach (STServerPeer rest_peer in aclient_peer)
+            {
+                rest_peer.delayDisconnect();
+            }
         }
         public void killPeer(STServerPeer peer)
         {

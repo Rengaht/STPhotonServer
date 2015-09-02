@@ -18,9 +18,9 @@ namespace STPhotonServer
         public GameA(STGameApp app):base(app,0)
         {
              GAME_SPAN = 600000; // 10min
-             ROUND_SPAN = 296000; // 5:00
+             ROUND_SPAN = 595000; // 9:55
 
-             INTERACTIVE_SPAN = 120000;
+             INTERACTIVE_SPAN = 180000;
 
              TIMEOUT_SPAN = 300000;
             
@@ -69,6 +69,10 @@ namespace STPhotonServer
 
                         InsertToSql(new String[] { sid, "Join Game"});
                     }
+                    else
+                    {
+                       // sender.delayDisconnect(5);
+                    }
                         // if is first one joining
                         //if(isWaiting()) StartRound();
                     //}
@@ -106,7 +110,7 @@ namespace STPhotonServer
                 
             if(!isIdInGame(sid)){
                 Log.Error("!! Not in-game ID: "+sid+" ! Kill it!!");
-                sender.delayDisconnect(3);
+                //sender.delayDisconnect(3);
                 return;
             }
 
@@ -198,7 +202,7 @@ namespace STPhotonServer
                     sender.sendOpResponseToPeer(STServerCode.CSet_Leave_Success, response_params);
                     
                     /* disconnect finished player */
-                    sender.delayDisconnect();
+                    //sender.delayDisconnect();
 
                     removeIdInGame(sid);
                     InsertToSql(new String[] { sid, "Leave"});

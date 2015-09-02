@@ -18,21 +18,27 @@ namespace STPhotonServer
         
         Timer wait_timer;
         private int WAIT_SPAN;
+        private int RUN_SPAN;
 
         Timer total_round_timer;
+
+        Timer delay_timer;
 
         bool play_in_game;
 
          public GameB(STGameApp app):base(app,1)
         {
-            
+            WAIT_SPAN = 60000;
+            RUN_SPAN = 100000;
+             
             GAME_SPAN = 600000; // whole game_b time, 10 min
-            ROUND_SPAN= 100000; //each round 1:40
+            ROUND_SPAN= WAIT_SPAN+RUN_SPAN; //each round 1:40 + 1:00(wait)
+
             END_SPAN=2000;
             Client_Limit=2;
 
-            WAIT_SPAN = 60000;
-            
+           
+
             resetWaitingList();
 
         }
@@ -60,13 +66,17 @@ namespace STPhotonServer
                         addIdInGame(sid);
 
                         InsertToSql(new String[]{sid,"Join Game"});
+                        online_client.Add(sender);
+                        checkWaitingStatus();
                     }
-                    online_client.Add(sender);
-
+                    else
+                    {
+                        //sender.delayDisconnect(5);
+                    }
+                    
                     sender.sendOpResponseToPeer(STServerCode.CJoin_Success,response_params);
 
-                    checkWaitingStatus();
-
+                    
                     break;
 
                 case STClientCode.APP_Rotate:
@@ -75,12 +85,12 @@ namespace STPhotonServer
                     else
                     {
                         Log.Error("!! Not in-game ID: " + sid + " ! Kill it!!");
-                        sender.delayDisconnect(3);
+                        //sender.delayDisconnect(3);
                     }
                     break;
 
                 case STClientCode.LED_StartRun:
-                    sendStartRun();
+                    if(waiting_list.Count>=mcur_player) sendStartRun();
                     break;
                 case STClientCode.LED_EatIcon:
 
@@ -165,7 +175,7 @@ namespace STPhotonServer
             if(play_in_game) return 2;
             //else
             //{
-            //    if (!checkEnoughTimeForRound()) return 0;
+            if (!checkEnoughTimeForRound()) return 0;
             //}
             // check time available !!!
             
@@ -264,11 +274,7 @@ namespace STPhotonServer
             foreach(STServerPeer peer in waiting_list)
             {
                 // check peer.Connected?
-                if (!peer.Connected)
-                {
-                    i++;
-                    continue;
-                }
+                
 
                 peer.sendEventToPeer(STServerCode.CGameB_Ready, new Dictionary<byte, object>() {{(byte)101,notified_user}});
 
@@ -309,10 +315,18 @@ namespace STPhotonServer
                 // start new game
                 if(wait_timer!=null) wait_timer.Close();
 
-                if (checkEnoughTimeForRound())
+                if (checkEnoughTimeForRound(RUN_SPAN))
                 {
                     //check is in game?
-                    if(!play_in_game) readyToStart();
+                    if (!play_in_game)
+                    {
+                        if (delay_timer != null) delay_timer.Close();
+                        delay_timer = new Timer(2000);
+                        delay_timer.Elapsed += new ElapsedEventHandler(readyToStart);
+                        delay_timer.AutoReset = false;
+                        delay_timer.Enabled = true;
+                        //readyToStart();
+                    }
                     else
                     {
                         Log.Debug("----- Fail: play in game -----");
@@ -321,6 +335,7 @@ namespace STPhotonServer
                 else
                 {
                     Log.Debug("----- Fail: Not enough time Left! -----");
+                    //game_app.killAllPeer();
                 }
 
             }
@@ -344,6 +359,11 @@ namespace STPhotonServer
             }
 
         }
+
+        private void readyToStart(object sender, ElapsedEventArgs e)
+        {
+            readyToStart();
+        }
         private void playByOne(object sender, ElapsedEventArgs e)
         {
             
@@ -354,19 +374,19 @@ namespace STPhotonServer
         }
         /* Check if there's enough time for one game!
          */
-        private bool checkTimeAvailable(int mgame_to_play)
-        {
+        //private bool checkTimeAvailable(int mgame_to_play)
+        //{
 
-            TimeSpan t = new TimeSpan(DateTime.Now.Ticks);
-            TimeSpan t2=new TimeSpan(round_start_time.Ticks);
+        //    TimeSpan t = new TimeSpan(DateTime.Now.Ticks);
+        //    TimeSpan t2=new TimeSpan(round_start_time.Ticks);
             
-            TimeSpan due = t.Subtract(t2).Duration();
+        //    TimeSpan due = t.Subtract(t2).Duration();
 
-            double remain_time = due.TotalMilliseconds+ROUND_SPAN;
+        //    double remain_time = due.TotalMilliseconds+ROUND_SPAN;
 
-            return remain_time>GAME_SPAN*mgame_to_play;
+        //    return remain_time>GAME_SPAN*mgame_to_play;
 
-        }
+        //}
 
 
         public override void EndRound()

@@ -67,6 +67,10 @@ namespace STPhotonServer
                         if (!online_client.Contains(sender)) online_client.Add(sender);
                         addIdInGame(sid);
                     }
+                    else
+                    {
+                       // sender.delayDisconnect(5);
+                    }
                     sender.sendOpResponseToPeer(STServerCode.CJoin_Success,response_params);
 
 
@@ -104,7 +108,7 @@ namespace STPhotonServer
                         Log.Error("!! Not in-game ID: " + sid + " ! Kill it!!");
                     }
                     /* disconnect finished player */
-                    sender.delayDisconnect();
+                    //sender.delayDisconnect();
                     removeIdInGame(sid);
 
                     break;

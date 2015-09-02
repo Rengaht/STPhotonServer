@@ -100,7 +100,7 @@ namespace STPhotonServer
             /* disconnect all peer */
             foreach (STServerPeer peer in online_client)
             {
-                peer.delayDisconnect();
+                //peer.delayDisconnect();
             }
             
             ingame_id.Clear();
@@ -188,6 +188,11 @@ namespace STPhotonServer
 
         public bool checkEnoughTimeForRound()
         {
+            return checkEnoughTimeForRound(ROUND_SPAN);
+        }
+        
+        public bool checkEnoughTimeForRound(int time_to_check)
+        {
             TimeSpan t = new TimeSpan(DateTime.Now.Ticks);
             TimeSpan t2 = new TimeSpan(game_start_time.Ticks);
 
@@ -195,9 +200,9 @@ namespace STPhotonServer
 
             double remain_time = GAME_SPAN-due.TotalMilliseconds;
             
-            Log.Warn("Remain Game Time: "+Math.Floor(remain_time/60000)+":"+Math.Floor(remain_time/1000)%60);
+            Log.Warn("Remain Game Time: "+remain_time+" = "+Math.Floor(remain_time/60000)+":"+Math.Floor(remain_time/1000)%60);
             
-            bool is_enough=remain_time > ROUND_SPAN;
+            bool is_enough=remain_time > time_to_check;
 
             return is_enough;
         }
