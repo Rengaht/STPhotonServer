@@ -13,8 +13,8 @@ namespace STPhotonServer
     class GameScene
     {
         static String[] Insert_Command ={
-            "INSERT INTO a_game_log_table(start_time,user_id) values(@Timestamp,@Uid)",
-            "INSERT INTO b_game_log_table(start_time,user_id) values(@Timestamp,@Uid)",
+            "INSERT INTO a_game_log_table(start_time,user_id,status) values(@Timestamp,@Uid,@Status)",
+            "INSERT INTO b_game_log_table(start_time,user_id,status) values(@Timestamp,@Uid,@Status)",
             "INSERT INTO c_game_log_table(start_time,user_id,face_image_path) values(@Timestamp,@Uid,@Imagepath)"};
 
 
@@ -36,8 +36,8 @@ namespace STPhotonServer
         Game_State cur_state { get; set; }
 
 
-        public List<STServerPeer> online_client; // id string -> peer
-
+        public List<STServerPeer> online_client; // peer
+        List<String> ingame_id; // id
         
         MySqlConnection sql_connection;
         public MySqlCommand sql_command;
@@ -51,6 +51,7 @@ namespace STPhotonServer
         {
             game_app=app;
             online_client = new List<STServerPeer>();
+            ingame_id=new List<String>();
 
             // open db
 
@@ -99,9 +100,11 @@ namespace STPhotonServer
             /* disconnect all peer */
             foreach (STServerPeer peer in online_client)
             {
-                peer.delayDisconnect();
+                //peer.delayDisconnect();
             }
             
+            ingame_id.Clear();
+
             cur_state=Game_State.Waiting;
 
         }
@@ -116,12 +119,24 @@ namespace STPhotonServer
             if(total_game_timer!=null) total_game_timer.Close();
             if(end_delay_timer!=null) end_delay_timer.Close();
 
+            
+            total_game_timer = new Timer(getGameRemainTime());
+            total_game_timer.Elapsed += new ElapsedEventHandler(reallyEndGame);
+            total_game_timer.AutoReset=false;
+            total_game_timer.Enabled=true;
+            //total_game_timer.Start();
+
+            Log.Info("Start Game Timer");
+
+        }
+        public double getGameRemainTime()
+        {
             /* compute the remaining time to next "10 min" */
-            DateTime now=DateTime.Now;
+            DateTime now = DateTime.Now;
             int dest_ten = (int)Math.Floor(now.Minute / 10.0) + 1;
             int dest_hour = now.Hour + ((dest_ten == 6) ? 1 : 0);
             dest_ten = (dest_ten == 6) ? 0 : dest_ten * 10;
-            DateTime dten= new DateTime(now.Year,now.Month,now.Day,dest_hour,dest_ten,0,0,now.Kind);
+            DateTime dten = new DateTime(now.Year, now.Month, now.Day, dest_hour, dest_ten, 0, 0, now.Kind);
 
             TimeSpan t = new TimeSpan(now.Ticks);
             TimeSpan t2 = new TimeSpan(dten.Ticks);
@@ -129,14 +144,9 @@ namespace STPhotonServer
             TimeSpan due = t.Subtract(t2).Duration();
             double time_to_ten = due.TotalMilliseconds;
 
-            total_game_timer = new Timer(time_to_ten);
-            total_game_timer.Elapsed += new ElapsedEventHandler(reallyEndGame);
-            total_game_timer.AutoReset=false;
-            total_game_timer.Enabled=true;
-            //total_game_timer.Start();
+            Log.Info("Get Remain Time: " + Math.Floor(due.TotalMinutes) + ":" + (due.TotalSeconds % 60));
 
-            Log.Info("Start Game Timer: "+Math.Floor(due.TotalMinutes)+":"+(due.TotalSeconds%60));
-
+            return time_to_ten;
         }
 
         //private void prepareToEndGame(object sender, ElapsedEventArgs e)
@@ -178,6 +188,11 @@ namespace STPhotonServer
 
         public bool checkEnoughTimeForRound()
         {
+            return checkEnoughTimeForRound(ROUND_SPAN);
+        }
+        
+        public bool checkEnoughTimeForRound(int time_to_check)
+        {
             TimeSpan t = new TimeSpan(DateTime.Now.Ticks);
             TimeSpan t2 = new TimeSpan(game_start_time.Ticks);
 
@@ -185,9 +200,9 @@ namespace STPhotonServer
 
             double remain_time = GAME_SPAN-due.TotalMilliseconds;
             
-            Log.Warn("Remain Game Time: "+Math.Floor(remain_time/60000)+":"+Math.Floor(remain_time/1000)%60);
+            Log.Warn("Remain Game Time: "+remain_time+" = "+Math.Floor(remain_time/60000)+":"+Math.Floor(remain_time/1000)%60);
             
-            bool is_enough=remain_time > ROUND_SPAN;
+            bool is_enough=remain_time > time_to_check;
 
             return is_enough;
         }
@@ -195,6 +210,19 @@ namespace STPhotonServer
         public bool isWaiting()
         {
             return cur_state == Game_State.Waiting;
+        }
+
+        public bool isIdInGame(String sid)
+        {
+            return ingame_id.Contains(sid);
+        }
+        public void addIdInGame(String sid)
+        {
+            if (!ingame_id.Contains(sid)) ingame_id.Add(sid);
+        }
+        public void removeIdInGame(String sid)
+        {
+            ingame_id.Remove(sid);
         }
 
         #region Handle mySql

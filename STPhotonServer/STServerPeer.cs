@@ -42,7 +42,13 @@ namespace STPhotonServer
         protected override void OnDisconnect(PhotonHostRuntimeInterfaces.DisconnectReason reasonCode, string reasonDetail)
         {
             game_app.removeClientPeer(this);
-            if (is_led) game_app.checkLed();
+
+            if (is_led)
+            {
+                Log.Warn("----------------- LED Disconnect! -----------------");
+                game_app.checkLed();
+                game_app.killAllPeer();
+            }
         }
 
         protected override void OnOperationRequest(OperationRequest operationRequest, SendParameters sendParameters)
@@ -90,8 +96,14 @@ namespace STPhotonServer
                     {
                         foreach(DictionaryEntry entry in eparams)
                         {
-                            Log.Debug(entry.Key +" "+entry.Key.GetType()+ " - " + entry.Value+" "+entry.Value.GetType());
-
+                            try
+                            {
+                                Log.Debug(entry.Key + " " + entry.Key.GetType() + " - " + entry.Value + " " + entry.Value.GetType());
+                            }
+                            catch (Exception e)
+                            {
+                                Log.Error(e.ToString());
+                            }
                             byte kbyte;
                             try{
                                 kbyte=(byte)entry.Key;
@@ -141,6 +153,11 @@ namespace STPhotonServer
 
                                 id_params.Add((byte)3, valid_id ? 1 : 0);
                                 id_params.Add((byte)100, get_id);
+
+                                id_params.Add((byte)200,game_app.getIosVersion());
+                                id_params.Add((byte)201, game_app.getAndroidVersion());
+
+                                
                             }
 
                             OperationResponse id_response=new OperationResponse((byte)STServerCode.Id_And_Game_Info,id_params)
@@ -161,7 +178,8 @@ namespace STPhotonServer
                             break;
                         default:
                             //Log.Warn("Undefined event code= "+event_code.ToString());
-                            if (game_app.led_ready)
+                           
+                           if (game_app.checkLed())
                             {
                                 game_app.handleMessage(this, event_code, event_params);
                             }
@@ -209,7 +227,15 @@ namespace STPhotonServer
 
         public void delayDisconnect()
         {
-            timer_disconnect = new Timer(DELAY_SPAN);
+            Log.Info("Prepare to disconnect peer!");
+            delayDisconnect(DELAY_SPAN);
+        }
+
+        public void delayDisconnect(float dtime)
+        {
+            if (timer_disconnect != null) timer_disconnect.Close();
+
+            timer_disconnect = new Timer(dtime);
             timer_disconnect.Elapsed += new ElapsedEventHandler(doDisconnect);
             timer_disconnect.AutoReset = false;
             timer_disconnect.Enabled = true;
@@ -217,6 +243,8 @@ namespace STPhotonServer
 
         public void doDisconnect(object sender, ElapsedEventArgs e)
         {
+
+            Log.Info("Disconnect peer!"+client_id);
             this.Disconnect();
             game_app.killPeer(this);
         }

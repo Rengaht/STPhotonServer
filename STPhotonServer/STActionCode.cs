@@ -45,6 +45,8 @@ namespace STPhotonServer
 
         CSend_GG=153,
 
+        CChange_Game=154,
+
         CSet_Side_Success=160,
         CSet_Name_Success=161,
         CSet_House_Success=162,
@@ -62,7 +64,7 @@ namespace STPhotonServer
         LRequest_Score=202,
         LSend_Score_Success=203,
         LSend_GG=204,
-        
+        LSet_ClockMode=205,
 
         LAdd_House=211,
         LSet_Name=212,
