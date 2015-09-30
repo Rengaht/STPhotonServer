@@ -66,7 +66,10 @@ namespace STPhotonServer
                         addIdInGame(sid);
 
                         InsertToSql(new String[]{sid,"Join Game"});
-                        online_client.Add(sender);
+                        lock (online_client)
+                        {
+                            online_client.Add(sender);
+                        }
                         checkWaitingStatus();
                     }
                     else
@@ -173,17 +176,25 @@ namespace STPhotonServer
 
             // check is playing
             if(play_in_game) return 2;
-            //else
-            //{
-            if (!checkEnoughTimeForRound()) return 0;
-            //}
-            // check time available !!!
-            
-            ////int mpair_waiting = (waiting_list.Count - (icur_player + mcur_player)) / 2;
-            //bool time_available = checkTimeAvailable(1);
 
-            //if(!time_available) return 0;
 
+            // check time available if there's no one in wait list !!!
+            lock (waiting_list)
+            {
+                if (waiting_list.Count == 0)
+                {
+                    if (!checkEnoughTimeForRound())
+                    {
+                        Log.Debug("Not Enough Time!");
+                        return 0;
+                    }
+                }
+                if (waiting_list.Count > 1)
+                {
+                    Log.Debug("Already someone in waiting list: " + waiting_list.Count);
+                    return 0;
+                }
+            }
             return 1;
             
         }
@@ -196,9 +207,12 @@ namespace STPhotonServer
         }
         private int getNewWaitingIndex(STServerPeer peer)
         {
-            // put in wait list
-            waiting_list.Add(peer);
-            return waiting_list.Count - 1;
+            lock (waiting_list)
+            {
+                // put in wait list
+                waiting_list.Add(peer);
+                return waiting_list.Count - 1;
+            }
         }
         override public int InsertToSql(String[] cmd_values)
         {
@@ -277,6 +291,7 @@ namespace STPhotonServer
                 
 
                 peer.sendEventToPeer(STServerCode.CGameB_Ready, new Dictionary<byte, object>() {{(byte)101,notified_user}});
+                peer.client_side = notified_user;
 
                 i++;
                 notified_user++;

@@ -25,7 +25,7 @@ namespace STPhotonServer
              TIMEOUT_SPAN = 300000;
             
              END_SPAN=5000;
-             Client_Limit=20;
+             Client_Limit=10;
 
              right_online_client = new Hashtable();
              left_online_client = new Hashtable();
@@ -64,7 +64,11 @@ namespace STPhotonServer
 
                     if (join_success == 1)
                     {
-                        online_client.Add(sender);
+                        lock (online_client)
+                        {
+                            online_client.Add(sender);
+                        }
+
                         addIdInGame(sid);
 
                         InsertToSql(new String[] { sid, "Join Game"});
@@ -80,11 +84,13 @@ namespace STPhotonServer
                     return;
 
                 case STClientCode.LED_StartRun:
-                    bool enough_time_round = checkEnoughTimeForRound();
+                    bool enough_time_round = checkEnoughTimeForRound(INTERACTIVE_SPAN);
                     if (isWaiting() && enough_time_round)
                     {
                         response_params.Add(1, 1);
+
                         response_params.Add(2, getGameRemainTime());
+
                         //sender.sendOpResponseToPeer(STServerCode.LGameB_Start, response_params);
                         game_app.SendNotifyLED(STServerCode.LGameB_Start, response_params);
                         StartRound();
@@ -123,20 +129,40 @@ namespace STPhotonServer
                     int side_index=-1;
                     if ((int)event_params[(byte)101] == 1)
                     {
-                        has_vacancy = (left_online_client.Count < Client_Limit / 2);
-                        if (has_vacancy){
-                            if(!left_online_client.ContainsKey((String)event_params[(byte)100]))
-                                left_online_client.Add((String)event_params[(byte)100], sender);
-                            side_index=1;
+                        lock (left_online_client)
+                        {
+
+                            has_vacancy = (left_online_client.Count < Client_Limit / 2);
+                            if (has_vacancy)
+                            {
+                                if (!left_online_client.ContainsKey((String)event_params[(byte)100]))
+                                    left_online_client.Add((String)event_params[(byte)100], sender);
+                                side_index = 1;
+                                sender.client_side = side_index;
+                            }
+                            else
+                            {
+                                Log.Debug("No vacancy at left " + left_online_client.Count);
+                            }
                         }
                     }
                     else if ((int)event_params[(byte)101] == 0)
                     {
-                        has_vacancy = (right_online_client.Count < Client_Limit / 2);
-                        if (has_vacancy){
-                            if (!right_online_client.ContainsKey((String)event_params[(byte)100])) 
-                                right_online_client.Add((String)event_params[(byte)100], sender);
-                            side_index=0;
+                        lock (right_online_client)
+                        {
+
+                            has_vacancy = (right_online_client.Count < Client_Limit / 2);
+                            if (has_vacancy)
+                            {
+                                if (!right_online_client.ContainsKey((String)event_params[(byte)100]))
+                                    right_online_client.Add((String)event_params[(byte)100], sender);
+                                side_index = 0;
+                                sender.client_side = side_index;
+                            }
+                            else
+                            {
+                                Log.Debug("No vacancy at right "+right_online_client.Count);
+                            }
                         }
                     }
                     response_params.Add(1,has_vacancy?1:0);
@@ -205,6 +231,24 @@ namespace STPhotonServer
                     /* disconnect finished player */
                     //sender.delayDisconnect();
 
+
+                    lock (online_client)
+                    {
+                        bool rm = online_client.Remove(sender);
+                        if (rm) Log.Debug("     Remove Client Success!!");
+                        else Log.Debug("     Remove Client Fail!!");
+                    }
+
+                    //int side = (int)event_params[(byte)101];
+                    lock (left_online_client)
+                    {
+                        left_online_client.Remove(sid);
+                    }
+                    lock (right_online_client)
+                    {
+                        right_online_client.Remove(sid);
+                    }
+
                     removeIdInGame(sid);
                     InsertToSql(new String[] { sid, "Leave"});
 
@@ -223,11 +267,16 @@ namespace STPhotonServer
                 Log.Debug("Illegal ID!");
                 return 0;
             }
+            //bool has_vacancy = online_client.Count<Client_Limit;
             bool has_vacancy = online_client.Count<Client_Limit;
             if (!has_vacancy)
             {
-                Log.Debug("No Vacancy");
+                Log.Debug("No Vacancy " + online_client.Count);
                 return 0;
+            }
+            else
+            {
+                Log.Debug("Has Vacancy " + online_client.Count);             
             }
             
             bool correct_game = ((int)event_params[(byte)1] == 0);
@@ -254,12 +303,21 @@ namespace STPhotonServer
 
             game_app.checkSqlConnection();
 
-            sql_command.Parameters.Clear();
-            sql_command.Parameters.AddWithValue("@Timestamp",DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
-            sql_command.Parameters.AddWithValue("@Uid", cmd_values[0]);
-            sql_command.Parameters.AddWithValue("@Status", cmd_values[1]);
+            try
+            {
+                sql_command.Parameters.Clear();
+                sql_command.Parameters.AddWithValue("@Timestamp", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                sql_command.Parameters.AddWithValue("@Uid", cmd_values[0]);
+                sql_command.Parameters.AddWithValue("@Status", cmd_values[1]);
 
-            return sql_command.ExecuteNonQuery();
+                int res = sql_command.ExecuteNonQuery();
+                return res;
+            }
+            catch (Exception e)
+            {
+                Log.Error("InsertToSql Error: "+e.Message);
+                return -1;
+            }
         }
 
         public bool checkEnoughTimeForPlayer()
@@ -270,18 +328,58 @@ namespace STPhotonServer
                 Log.Warn("Check Time: No Game");
                 return false;
             }
-            TimeSpan t = new TimeSpan(DateTime.Now.Ticks);
-            TimeSpan t2 = new TimeSpan(round_start_time.Ticks);
+            //TimeSpan t = new TimeSpan(DateTime.Now.Ticks);
+            //TimeSpan t2 = new TimeSpan(round_start_time.Ticks);
 
-            TimeSpan due = t.Subtract(t2).Duration();
+            //TimeSpan due = t.Subtract(t2).Duration();
 
-            double remain_time = ROUND_SPAN - due.TotalMilliseconds;
+            //double remain_time = ROUND_SPAN - due.TotalMilliseconds;
 
-            Log.Warn("Remain Round Time: " + remain_time);
+            //Log.Warn("Remain Round Time: " + remain_time);
 
-            bool is_enough = remain_time > INTERACTIVE_SPAN; 
+            //bool is_enough = remain_time > INTERACTIVE_SPAN; 
 
-            return is_enough;
+            //return is_enough;
+            return checkEnoughTimeForRound(INTERACTIVE_SPAN);
+
+        }
+
+        /* when client disconnect */
+        override public void removeClient(STServerPeer peer_to_remove)
+        {
+
+
+            string sid=peer_to_remove.client_id;
+            int side = peer_to_remove.client_side;
+
+            Log.Debug("Client Disconnect!! "+sid);
+
+            Dictionary<byte,Object> param=new Dictionary<byte,object>();
+            param.Add((byte)100, sid);
+            param.Add((byte)101, side);
+            game_app.SendNotifyLED(STServerCode.LSet_User_Leave,param);
+
+            lock (online_client)
+            {
+                bool rm = online_client.Remove(peer_to_remove);
+                if (rm) Log.Debug("     Remove Disconnect Client Success!!");
+                else Log.Debug("     Remove Disconnect Client Fail!!");
+            }
+
+            if (sid != null)
+            {
+                lock (left_online_client)
+                {
+                    left_online_client.Remove(sid);
+                }
+                lock (right_online_client)
+                {
+                    right_online_client.Remove(sid);
+                }
+
+                removeIdInGame(sid);
+                InsertToSql(new String[] { sid, "Disconnect" });
+            }
         }
     }
 }

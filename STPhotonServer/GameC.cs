@@ -64,7 +64,10 @@ namespace STPhotonServer
                     //response_params.Add(2,game_app.getClientIndex(sender));
                     if (success == 1)
                     {
-                        if (!online_client.Contains(sender)) online_client.Add(sender);
+                        lock (online_client)
+                        {
+                            if (!online_client.Contains(sender)) online_client.Add(sender);
+                        }
                         addIdInGame(sid);
                     }
                     else
@@ -79,7 +82,7 @@ namespace STPhotonServer
               
                 case STClientCode.APP_Face:
                    
-                    if (isIdInGame(sid))
+                    if (!clock_mode && isIdInGame(sid))
                     {
                         // TODO: save to server
                         String uid = (String)event_params[(byte)100];
@@ -106,11 +109,16 @@ namespace STPhotonServer
                     else
                     {
                         Log.Error("!! Not in-game ID: " + sid + " ! Kill it!!");
+                        response_params.Add((byte)1, 0);
+                        sender.sendOpResponseToPeer(STServerCode.CSet_Face_Success, response_params);
                     }
                     /* disconnect finished player */
                     //sender.delayDisconnect();
                     removeIdInGame(sid);
-
+                    lock (online_client)
+                    {
+                        online_client.Remove(sender);
+                    }
                     break;
 
                 //case STClientCode.LED_Score:
@@ -125,6 +133,10 @@ namespace STPhotonServer
         {
             clock_mode = true;
             game_app.SendNotifyLED(STServerCode.LSet_ClockMode, new Dictionary<byte, object>());
+
+            //send switch game to mobile clients
+            game_app.sendSwitchGame();
+
         }
 
         override public void reallyEndGame(object sender, ElapsedEventArgs e)
@@ -153,6 +165,12 @@ namespace STPhotonServer
             if (!correct_game)
             {
                 Log.Debug("Incorrect Game: "+(int)event_params[(byte)1]+"!");
+                return 0;
+            }
+
+            if (!checkEnoughTimeForRound(120000))
+            {
+                Log.Debug("Not Enough Time: " + (int)event_params[(byte)1] + "!");
                 return 0;
             }
 
@@ -201,7 +219,25 @@ namespace STPhotonServer
             if (img.Size.Width>= 104 && img.Size.Height>=104) return true;
             return false;
         }
-        
 
+        /* when client disconnect */
+        override public void removeClient(STServerPeer peer_to_remove)
+        {
+
+            string sid = peer_to_remove.client_id;
+           
+            lock (online_client)
+            {
+                bool rm = online_client.Remove(peer_to_remove);
+                if (rm) Log.Debug("     Remove Disconnect Client Success!!");
+                else Log.Debug("     Remove Disconnect Client Fail!!");
+            }
+
+            if (sid != null)
+            {
+                removeIdInGame(sid);
+                InsertToSql(new String[] { sid, "Disconnect" });
+            }
+        }
     }
 }

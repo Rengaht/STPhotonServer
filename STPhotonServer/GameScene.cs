@@ -7,6 +7,8 @@ using System.Text;
 using System.Timers;
 using System.Collections;
 using MySql.Data.MySqlClient;
+using System.Collections.Concurrent;
+
 
 namespace STPhotonServer
 {
@@ -29,6 +31,7 @@ namespace STPhotonServer
         public Timer total_game_timer,end_delay_timer;
         public DateTime round_start_time,game_start_time;
 
+        public double this_game_span;
 
         protected static readonly ILogger Log = LogManager.GetCurrentClassLogger();
 
@@ -37,11 +40,14 @@ namespace STPhotonServer
 
 
         public List<STServerPeer> online_client; // peer
+       //public BlockingCollection<STServerPeer> online_client;
+       // public SynchronizedCollection<STServerPeer> online_client;
+
         List<String> ingame_id; // id
         
         MySqlConnection sql_connection;
         public MySqlCommand sql_command;
-
+        
         
 
         public GameScene()
@@ -50,7 +56,9 @@ namespace STPhotonServer
         public GameScene(STGameApp app,int game_type)
         {
             game_app=app;
-            online_client = new List<STServerPeer>();
+           online_client = new List<STServerPeer>();
+           // online_client = new SynchronizedCollection<STServerPeer>();
+
             ingame_id=new List<String>();
 
             // open db
@@ -65,14 +73,19 @@ namespace STPhotonServer
         virtual public void handleMessage(STServerPeer sender,STClientCode code,Dictionary<byte,object> ev_params)
         {
         }
+        virtual public void removeClient(STServerPeer peer_to_remove)
+        {
 
+        }
         virtual public void InitGame()
         {
             Log.Warn(">>>> Game Scene Init");
             cur_state=Game_State.Waiting;
-            
-            online_client.Clear();
 
+            lock (online_client)
+            {
+                online_client.Clear();
+            }
             game_start_time = DateTime.Now;
             
             setupGameTimer();
@@ -119,8 +132,8 @@ namespace STPhotonServer
             if(total_game_timer!=null) total_game_timer.Close();
             if(end_delay_timer!=null) end_delay_timer.Close();
 
-            
-            total_game_timer = new Timer(getGameRemainTime());
+            this_game_span = getGameRemainTime();
+            total_game_timer = new Timer(this_game_span);
             total_game_timer.Elapsed += new ElapsedEventHandler(reallyEndGame);
             total_game_timer.AutoReset=false;
             total_game_timer.Enabled=true;
@@ -198,10 +211,11 @@ namespace STPhotonServer
 
             TimeSpan due = t.Subtract(t2).Duration();
 
-            double remain_time = GAME_SPAN-due.TotalMilliseconds;
-            
-            Log.Warn("Remain Game Time: "+remain_time+" = "+Math.Floor(remain_time/60000)+":"+Math.Floor(remain_time/1000)%60);
-            
+            double remain_time = this_game_span - due.TotalMilliseconds;
+
+            //double remain_time = getGameRemainTime();            
+            Log.Warn("Remain Game Time: "+remain_time+" = "+Math.Floor(remain_time/60000)+":"+Math.Floor(remain_time/1000)%60+" -> "+time_to_check);
+           
             bool is_enough=remain_time > time_to_check;
 
             return is_enough;
@@ -222,7 +236,10 @@ namespace STPhotonServer
         }
         public void removeIdInGame(String sid)
         {
-            ingame_id.Remove(sid);
+            lock (ingame_id)
+            {
+                ingame_id.Remove(sid);
+            }
         }
 
         #region Handle mySql

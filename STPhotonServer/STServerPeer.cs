@@ -23,7 +23,8 @@ namespace STPhotonServer
         private Boolean is_led=false;
         private readonly IFiber fiber;
         public String client_id { get; set; }
-        
+        public int client_side { get; set; }
+
         private Timer timer_disconnect;
         private int DELAY_SPAN = 7000;
 
@@ -157,6 +158,7 @@ namespace STPhotonServer
                                 id_params.Add((byte)200,game_app.getIosVersion());
                                 id_params.Add((byte)201, game_app.getAndroidVersion());
 
+                                this.client_id = get_id;
                                 
                             }
 

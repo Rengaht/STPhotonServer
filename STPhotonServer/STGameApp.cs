@@ -18,7 +18,7 @@ namespace STPhotonServer
         public bool enable_db = true;
 
         bool debug_mode = false;
-        int debug_game = 0;
+        int debug_game = 2;
 
         protected static readonly ILogger Log=LogManager.GetCurrentClassLogger();
 
@@ -153,9 +153,9 @@ namespace STPhotonServer
         {
             aclient_peer.Remove(peer);
 
-            // remove from game's player list??
-            //agame_scene[cur_game].online_client.Remove((STServerPeer)peer);
-
+            // remove from game's player list?
+            agame_scene[cur_game].removeClient((STServerPeer)peer);
+           
         }
 
         private void initGame(int game_index)
@@ -188,17 +188,20 @@ namespace STPhotonServer
             }
 
             SendNotifyLED(STServerCode.Id_And_Game_Info,new Dictionary<byte,object>() { { (byte)1,cur_game } });
-
+            sendSwitchGame();
+            
+            switch_next_game = -1;
+        }
+        public void sendSwitchGame()
+        {
             EventData event_data = new EventData((byte)STServerCode.CChange_Game,
-                                               new Dictionary<byte,object>() { { (byte)1,cur_game}});
-            foreach(STServerPeer peer in aclient_peer)
+                                               new Dictionary<byte, object>() { { (byte)1,cur_game } });
+            foreach (STServerPeer peer in aclient_peer)
             {
                 peer.sendEventToPeer(event_data);
             }
 
-            switch_next_game = -1;
         }
-
         private void goNextGameAfterSleep(object sender, ElapsedEventArgs e)
         {
             goNextGame();
@@ -225,7 +228,8 @@ namespace STPhotonServer
             //else{
             //    initGame(getGameSchedule()-1);
             //}
-            initGame(getGameSchedule() - 1);
+            if (debug_mode) initGame(debug_game); 
+            else initGame(getGameSchedule() - 1);
         }
 
         public void SendNotifyLED(STServerCode event_code,Dictionary<byte,Object> event_param)
@@ -342,16 +346,22 @@ namespace STPhotonServer
             if (!enable_db) return true;
             checkSqlConnection();
 
+            try
+            {
+                checkid_cmd.Parameters["@pid"].Value = id_string;
+                checkid_cmd.ExecuteNonQuery();
 
-            checkid_cmd.Parameters["@pid"].Value = id_string;
-            checkid_cmd.ExecuteNonQuery();
+                int pcount = (int)checkid_cmd.Parameters["@pcount"].Value;
+                Log.Warn("Check Valid ID In db: " + pcount);
 
-            int pcount = (int)checkid_cmd.Parameters["@pcount"].Value;
-            Log.Warn("Check Valid ID In db: " + pcount);
+                return (pcount > 0);
 
-            return (pcount > 0);
-
-
+            }
+            catch (Exception e)
+            {
+                Log.Error("Check ID Exception: "+e.Message);
+                return false;
+            }
         }
         public bool checkLed()
         {
@@ -386,8 +396,11 @@ namespace STPhotonServer
         private void clearClientList(object sender, ElapsedEventArgs e)
         {            
             aclient_peer.RemoveAll(s=> !s.Connected);
-            agame_scene[cur_game].online_client.RemoveAll(s => !s.Connected);
-           
+            lock(agame_scene[cur_game].online_client)
+            {
+                agame_scene[cur_game].online_client.RemoveAll(s => !s.Connected);
+            }
+
             Log.Debug("Clear List, rest client= " + aclient_peer.Count);
         }
         private void setupCleaner()
@@ -433,10 +446,17 @@ namespace STPhotonServer
             if (!enable_db) return;
 
             checkSqlConnection();
-            
-            String time_str = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-            sql_command.CommandText = "Insert into user_id_table(time_create,user_id) values('" + time_str + "','" + id_str + "')";
-            sql_command.ExecuteNonQuery();
+
+            try
+            {
+                String time_str = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                sql_command.CommandText = "Insert into user_id_table(time_create,user_id) values('" + time_str + "','" + id_str + "')";
+                sql_command.ExecuteNonQuery();
+            }
+            catch (Exception e)
+            {
+                Log.Error("Add user to database error: "+e.Message);
+            }
         }
 
         public void closeDatabase()
