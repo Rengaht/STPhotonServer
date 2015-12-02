@@ -376,7 +376,7 @@ namespace STPhotonServer
                 {
                     right_online_client.Remove(sid);
                 }
-
+                
                 removeIdInGame(sid);
                 InsertToSql(new String[] { sid, "Disconnect" });
             }

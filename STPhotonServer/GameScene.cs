@@ -232,7 +232,10 @@ namespace STPhotonServer
         }
         public void addIdInGame(String sid)
         {
-            if (!ingame_id.Contains(sid)) ingame_id.Add(sid);
+            lock (ingame_id)
+            {
+                if (!ingame_id.Contains(sid)) ingame_id.Add(sid);
+            }
         }
         public void removeIdInGame(String sid)
         {

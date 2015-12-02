@@ -17,8 +17,8 @@ namespace STPhotonServer
     {
         public bool enable_db = true;
 
-        bool debug_mode = false;
-        int debug_game = 2;
+        bool debug_mode = true;
+        int debug_game = 0;
 
         protected static readonly ILogger Log=LogManager.GetCurrentClassLogger();
 
